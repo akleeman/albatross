@@ -35,6 +35,7 @@ matrix:
         sources:
           - ubuntu-toolchain-r-test
         packages:
+          - python3.4-venv
           - libc++-dev
           - libc++abi-dev
           - clang-3.8
@@ -43,8 +44,18 @@ matrix:
           - libnlopt-dev
     env:
       - C_COMPILER=clang-3.8 CXX_COMPILER=clang++-3.8 COVERAGE=''
+  - compiler: sphinx
+    addons:
+      apt:
+        sources:
+          - ubuntu-toolchain-r-test
+        packages:
+          - python3.4-venv
+    env:
+      - ALBATROSS_DOCS=true
 
 
 script:
-  bash ./ci/run_tests.sh || exit 1;
+  if [[ -z $ALBATROSS_DOCS ]]; then bash ./ci/run_tests.sh || exit 1; else ./doc/build_docs.sh || exit 1; fi;
+
 
