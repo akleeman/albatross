@@ -128,28 +128,37 @@ void write_predictions(const std::string output_path,
   ostream.open(output_path);
   ostream << "STATION,LAT,LON,ELEV(M),X,Y,Z,TEMP,VARIANCE" << std::endl;
 
-  std::size_t n = features.size();
+  std::size_t n = 100; //features.size();
   std::size_t count = 0;
-  for (const auto &f : features) {
-    ostream << std::to_string(f.id);
-    ostream << ", " << std::to_string(f.lat);
-    ostream << ", " << std::to_string(f.lon);
-    ostream << ", " << std::to_string(f.height);
-    ostream << ", " << std::to_string(f.ecef[0]);
-    ostream << ", " << std::to_string(f.ecef[1]);
-    ostream << ", " << std::to_string(f.ecef[2]);
+
+  clock_t start = clock();
+  for (std::size_t i = 0; i < n; i++) {
+    const auto f = features[i];
+//    ostream << std::to_string(f.id);
+//    ostream << ", " << std::to_string(f.lat);
+//    ostream << ", " << std::to_string(f.lon);
+//    ostream << ", " << std::to_string(f.height);
+//    ostream << ", " << std::to_string(f.ecef[0]);
+//    ostream << ", " << std::to_string(f.ecef[1]);
+//    ostream << ", " << std::to_string(f.ecef[2]);
 
     std::vector<Station> one_feature = {f};
     const auto pred = model.predict(one_feature);
 
-    ostream << ", " << std::to_string(pred.mean[0]);
-    ostream << ", " << std::to_string(std::sqrt(pred.covariance(0, 0)));
-    ostream << std::endl;
-    if (count % 1000 == 0) {
-      std::cout << count + 1 << "/" << n << std::endl;
-    }
+//    ostream << ", " << std::to_string(pred.mean[0]);
+//    ostream << ", " << std::to_string(std::sqrt(pred.covariance(0, 0)));
+//    ostream << std::endl;
+//    if (count % 1000 == 0) {
+//      std::cout << count + 1 << "/" << n << std::endl;
+//    }
     count++;
   }
+
+  clock_t end = clock();
+  double total_predict_time = (double) (end-start) / CLOCKS_PER_SEC;
+  double per_query_time = total_predict_time / static_cast<double>(n);
+  std::cout << "Each query took: " << per_query_time << std::endl;
+
 }
 
 } // namespace albatross

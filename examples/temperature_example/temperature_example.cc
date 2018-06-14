@@ -11,6 +11,7 @@
  */
 
 #include "evaluate.h"
+#include "cereal/archives/binary.hpp"
 #include "gflags/gflags.h"
 #include "temperature_example_utils.h"
 #include "tune.h"
@@ -28,6 +29,25 @@ int main(int argc, char *argv[]) {
 
   std::cout << "Reading the input data." << std::endl;
   auto data = read_temperature_csv_input(FLAGS_input, std::stoi(FLAGS_thin));
+
+  std::vector<Station> augmented_features;
+  std::vector<double> augmented_targets;
+
+  for (int i = 0; i < 2; i++) {
+    for (std::size_t j=0; j < data.features.size(); j++) {
+      Station perturbed_feature = data.features[j];
+      perturbed_feature.ecef[0] += i * 100;
+      perturbed_feature.ecef[1] -= i * 100;
+      perturbed_feature.ecef[2] += i * 30;
+      augmented_features.push_back(perturbed_feature);
+      augmented_targets.push_back(data.targets.mean[static_cast<Eigen::Index>(j)]);
+    }
+  }
+
+  Eigen::Map<Eigen::VectorXd> eigen_targets(&augmented_targets[0],
+                                            static_cast<int>(augmented_targets.size()));
+  data = albatross::RegressionDataset<Station>(augmented_features, eigen_targets);
+
   std::cout << "Using " << data.features.size() << " data points" << std::endl;
 
   std::cout << "Defining the model." << std::endl;
@@ -79,7 +99,25 @@ int main(int argc, char *argv[]) {
   model.set_params(params);
 
   std::cout << "Training the model." << std::endl;
+
+  clock_t start = clock();
   model.fit(data);
+  clock_t end = clock();
+  double fit_time = (double) (end-start) / CLOCKS_PER_SEC;
+  std::cout << "Fit with " << data.features.size() << " features took " << fit_time << std::endl;
+
+  clock_t serialize_start = clock();
+  std::ostringstream oss;
+  oss << "serialized_" << data.features.size() << ".model";
+  std::ofstream ofs(oss.str());
+  std::cout << "Serializing the model." << std::endl;
+  {
+    cereal::BinaryOutputArchive archive(ofs);
+    archive(model);
+  }
+  clock_t serialize_end = clock();
+  double serialize_time = (double) (serialize_end-serialize_start) / CLOCKS_PER_SEC;
+  std::cout << "Serializing with " << data.features.size() << " features took " << serialize_time << std::endl;
 
   auto predict_features = read_temperature_csv_input(FLAGS_predict, 1).features;
   std::cout << "Going to predict at " << predict_features.size() << " locations"
