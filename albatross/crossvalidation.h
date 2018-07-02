@@ -163,6 +163,7 @@ static inline std::vector<PredictDistribution> cross_validated_predictions(
   // Iteratively make predictions and assemble the output vector
   std::vector<PredictDistribution> predictions;
   for (std::size_t i = 0; i < folds.size(); i++) {
+    std::cout << "fold: " << folds[i].name << std::endl;
     predictions.push_back(model->fit_and_predict(
         folds[i].train_dataset.features, folds[i].train_dataset.targets,
         folds[i].test_dataset.features));

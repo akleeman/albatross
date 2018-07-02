@@ -24,9 +24,25 @@
 
 namespace albatross {
 
-using DiagonalMatrixXd = Eigen::DiagonalMatrix<double, Eigen::Dynamic>;
-using TargetDistribution = Distribution<DiagonalMatrixXd>;
-using PredictDistribution = Distribution<Eigen::MatrixXd>;
+using TargetDistribution = DiagonalDistribution;
+using PredictDistribution = DenseDistribution;
+
+template <class Archive>
+void save(Archive &archive, const TargetDistribution &distribution) {
+  archive(cereal::make_nvp("mean", distribution.mean));
+  archive(cereal::make_nvp("diagonal", distribution.covariance.diagonal()));
+}
+
+template <class Archive>
+void load(Archive &archive, TargetDistribution &distribution) {
+  Eigen::VectorXd mean;
+  archive(cereal::make_nvp("mean", mean));
+  distribution.mean = mean;
+
+  Eigen::VectorXd diagonal;
+  archive(cereal::make_nvp("diagonal", diagonal));
+  distribution.covariance = diagonal.asDiagonal();
+}
 
 /*
  * A RegressionDataset holds two vectors of data, the features
@@ -53,6 +69,12 @@ template <typename FeatureType> struct RegressionDataset {
   RegressionDataset(const std::vector<FeatureType> &features_,
                     const Eigen::VectorXd &targets_)
       : RegressionDataset(features_, TargetDistribution(targets_)) {}
+
+  template <class Archive> void serialize(Archive &archive) {
+    archive(cereal::make_nvp("features", features));
+    archive(cereal::make_nvp("targets", targets));
+  }
+
 };
 
 typedef int32_t s32;
@@ -152,6 +174,27 @@ public:
     return predict(features);
   }
 
+  DiagonalDistribution predict_marginal(const std::vector<FeatureType> &features) const {
+    assert(has_been_fit());
+    DiagonalDistribution preds = predict_marginal_(features);
+    assert(static_cast<s32>(preds.mean.size()) ==
+           static_cast<s32>(features.size()));
+    return preds;
+  }
+
+  Eigen::VectorXd predict_mean(const std::vector<FeatureType> &features) const {
+    assert(has_been_fit());
+    Eigen::VectorXd preds = predict_mean_(features);
+    assert(static_cast<s32>(preds.size()) ==
+           static_cast<s32>(features.size()));
+    return preds;
+  }
+
+  double predict_mean(const FeatureType &feature) const {
+    std::vector<FeatureType> features = {feature};
+    return predict_mean(features)[0];
+  }
+
   /*
    * Computes predictions for the test features given set of training
    * features and targets. In the general case this is simply a call to fit,
@@ -216,6 +259,19 @@ protected:
 
   virtual PredictDistribution
   predict_(const std::vector<FeatureType> &features) const = 0;
+
+  virtual DiagonalDistribution
+  predict_marginal_(const std::vector<FeatureType> &features) const {
+    std::cout << "WARNING: A marginal prediction is being made, but in a horribly inefficient way.";
+    const auto full_distribution = predict_(features);
+    return DiagonalDistribution(full_distribution.mean, full_distribution.covariance.diagonal().asDiagonal());
+  }
+
+  virtual   Eigen::VectorXd predict_mean_(const std::vector<FeatureType> &features) const {
+    std::cout << "WARNING: A mean prediction is being made, but in a horribly inefficient way.";
+    const auto full_distribution = predict_(features);
+    return full_distribution.mean;
+  }
 
   bool has_been_fit_;
 };
