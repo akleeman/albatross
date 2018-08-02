@@ -97,6 +97,8 @@ template <typename FeatureType> struct RegressionFold {
         test_indices(test_indices_){};
 };
 
+template <typename T> struct PredictIdentity { typedef T type; };
+
 /*
  * A model that uses a single Feature to estimate the value of a double typed
  * target.
@@ -154,11 +156,36 @@ public:
    * and makes simple checks to confirm the implementation is returning
    * properly sized Distribution.
    */
-  JointDistribution predict(const std::vector<FeatureType> &features) const {
+  template <typename PredictType = JointDistribution>
+  PredictType predict(const std::vector<FeatureType> &features) const {
+    return predict(features, PredictIdentity<PredictType>());
+  }
+
+  JointDistribution
+  predict(const std::vector<FeatureType> &features,
+          PredictIdentity<JointDistribution> &&identity) const {
     assert(has_been_fit());
     JointDistribution preds = predict_(features);
     assert(static_cast<s32>(preds.mean.size()) ==
            static_cast<s32>(features.size()));
+    return preds;
+  }
+
+  MarginalDistribution
+  predict(const std::vector<FeatureType> &features,
+          PredictIdentity<MarginalDistribution> &&identity) const {
+    assert(has_been_fit());
+    MarginalDistribution preds = predict_marginal_(features);
+    assert(static_cast<s32>(preds.mean.size()) ==
+           static_cast<s32>(features.size()));
+    return preds;
+  }
+
+  Eigen::VectorXd predict(const std::vector<FeatureType> &features,
+                          PredictIdentity<Eigen::VectorXd> &&identity) const {
+    assert(has_been_fit());
+    Eigen::VectorXd preds = predict_mean_(features);
+    assert(static_cast<s32>(preds.size()) == static_cast<s32>(features.size()));
     return preds;
   }
 
@@ -167,25 +194,9 @@ public:
     return predict(features);
   }
 
-  MarginalDistribution
-  predict_marginal(const std::vector<FeatureType> &features) const {
-    assert(has_been_fit());
-    MarginalDistribution preds = predict_marginal_(features);
-    assert(static_cast<s32>(preds.mean.size()) ==
-           static_cast<s32>(features.size()));
-    return preds;
-  }
-
-  Eigen::VectorXd predict_mean(const std::vector<FeatureType> &features) const {
-    assert(has_been_fit());
-    Eigen::VectorXd preds = predict_mean_(features);
-    assert(static_cast<s32>(preds.size()) == static_cast<s32>(features.size()));
-    return preds;
-  }
-
   double predict_mean(const FeatureType &feature) const {
     std::vector<FeatureType> features = {feature};
-    return predict_mean(features)[0];
+    return predict<Eigen::VectorXd>(features)[0];
   }
 
   /*
@@ -200,7 +211,7 @@ public:
                   const std::vector<FeatureType> &test_features) {
     // Fit using the training data, then predict with the test.
     fit(train_features, train_targets);
-    return predict(test_features);
+    return predict<JointDistribution>(test_features);
   }
 
   /*
