@@ -33,4 +33,12 @@ TEST(test_random_utils, randint_without_replacement) {
   }
 }
 
+TEST(test_random_utils, randint_without_replacement_full_set) {
+  std::default_random_engine gen;
+  const auto inds = randint_without_replacement(10, 0, 9, gen);
+  for (std::size_t i = 0; i < inds.size(); i++) {
+    EXPECT_EQ(inds[i], i);
+  }
+}
+
 } // namespace albatross
