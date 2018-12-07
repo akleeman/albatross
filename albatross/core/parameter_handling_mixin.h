@@ -47,7 +47,7 @@ struct Parameter {
   ParameterPrior prior;
 
   Parameter() : value(), prior(nullptr){};
-  Parameter(ParameterValue value_) : value(value_), prior(nullptr) {}
+  //  Parameter(ParameterValue value_) : value(value_), prior(nullptr) {}
   Parameter(ParameterValue value_, const ParameterPrior &prior_)
       : value(value_), prior(prior_){};
   /*

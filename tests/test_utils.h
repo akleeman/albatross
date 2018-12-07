@@ -131,7 +131,7 @@ public:
 class TestParameterHandler : public ParameterHandlingMixin {
 public:
   TestParameterHandler() : ParameterHandlingMixin() {
-    params_ = {{"A", 1.}, {"B", 2.}};
+    params_ = {{"A", {1., nullptr}}, {"B", {2., nullptr}}};
   };
 };
 

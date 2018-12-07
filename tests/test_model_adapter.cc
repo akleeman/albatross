@@ -27,7 +27,7 @@ using TestAdaptedModelBase = AdaptedRegressionModel<double, TestBaseModel>;
 
 class TestAdaptedModel : public TestAdaptedModelBase {
 public:
-  TestAdaptedModel() { this->params_["center"] = 0.; };
+  TestAdaptedModel() { this->params_["center"] = {0., nullptr}; };
 
   std::string get_name() const override { return "test_adapted"; };
 

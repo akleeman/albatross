@@ -179,6 +179,7 @@ TEST(test_parameter_handler, test_set_param_values_doesnt_overwrite_prior) {
     // but not the prior.
     EXPECT_TRUE(!pair.second.has_prior() ||
                 (pair.second.prior == new_param.prior));
+    p.set_param(pair.first, pair.second.value);
   }
 };
 

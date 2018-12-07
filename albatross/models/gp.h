@@ -74,6 +74,11 @@ GaussianProcessFit<FeatureType>::GaussianProcessFit(
   if (targets.has_covariance()) {
     cov += targets.covariance;
   }
+  assert(!cov.hasNaN()); // The covariance matrix has a NAN.  The subsequent
+                         // LDLT decomposition on a matrix with nans would
+                         // actually NOT fail and instead just keep returning
+                         // zeros from the solve which makes for a very
+                         // confusing bug to track down.
   train_ldlt = Eigen::SerializableLDLT(cov.ldlt());
   // Precompute the information vector
   information = train_ldlt.solve(targets.mean);
