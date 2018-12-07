@@ -292,6 +292,35 @@ static inline std::vector<RegressionFold<FeatureType>> leave_one_group_out(
   return folds_from_fold_indexer<FeatureType>(dataset, indexer);
 }
 
+/*
+ * Use the training datasets from one set of folds and the test
+ * datasets from another.  The two must have exactly the same
+ * length and fold names.
+ */
+template <typename FeatureType>
+static inline std::vector<RegressionFold<FeatureType>> join_folds(
+    const std::vector<RegressionFold<FeatureType>> &train_folds,
+    const std::vector<RegressionFold<FeatureType>> &test_folds) {
+  assert(train_folds.size() == test_folds.size());
+  std::vector<RegressionFold<FeatureType>> output;
+
+  std::map<std::string, RegressionFold<FeatureType>> test_fold_lookup;
+  for (const auto &test_fold : train_folds) {
+    test_fold_lookup[test_fold.name] = test_fold;
+  }
+
+  for (const auto &fold : train_folds) {
+    assert(map_contains(test_fold_lookup, fold.name)); // train and test folds don't align.
+    const auto test_fold = test_fold_lookup.at(fold.name);
+    RegressionFold<FeatureType> combined_fold(train_folds.train_dataset,
+                                              test_fold.test_dataset,
+                                              fold.name,
+                                              test_fold.test_indices);
+    output.push_back(combined_fold);
+  }
+  return output;
+}
+
 } // namespace albatross
 
 #endif
