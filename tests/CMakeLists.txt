@@ -13,6 +13,7 @@ test_distance_metrics.cc
 test_eigen_utils.cc
 test_evaluate.cc
 test_functional_model.cc
+test_inspect.cc
 test_map_utils.cc
 test_model_adapter.cc
 test_models.cc

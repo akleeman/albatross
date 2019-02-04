@@ -52,9 +52,6 @@ public:
   LeastSquaresFit
   serializable_fit_(const std::vector<Eigen::VectorXd> &features,
                     const MarginalDistribution &targets) const override {
-    // The way this is currently implemented we assume all targets have the same
-    // variance (or zero variance).
-    assert(!targets.has_covariance());
     // Build the design matrix
     int m = static_cast<int>(features.size());
     int n = static_cast<int>(features[0].size());

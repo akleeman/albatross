@@ -62,6 +62,13 @@ public:
   const std::string name_;
 };
 
+struct PolynomialState {
+
+  PolynomialState(const int order_) : order(order_){};
+
+  int order;
+};
+
 template <int order>
 class Polynomial : public CovarianceFunction<Polynomial<order>> {
 public:
@@ -76,6 +83,14 @@ public:
 
   ~Polynomial(){};
 
+  std::vector<PolynomialState> get_state_space_representation() {
+    std::vector<PolynomialState> states;
+    for (int i = 0; i < order + 1; ++i) {
+      states.emplace_back(i);
+    }
+    return states;
+  }
+
   double call_impl_(const double &x, const double &y) const {
     double cov = 0.;
     for (int i = 0; i < order + 1; i++) {
@@ -84,6 +99,21 @@ public:
       cov += sigma * sigma * pow(x, p) * pow(y, p);
     }
     return cov;
+  }
+
+  double call_impl_(const PolynomialState &x, const double &y) const {
+    const double sigma = this->get_param_value(param_names_.at(x.order));
+    const double p = static_cast<double>(x.order);
+    return sigma * sigma * pow(y, p);
+  }
+
+  double call_impl_(const PolynomialState &x, const PolynomialState &y) const {
+    if (x.order == y.order) {
+      const double sigma = this->get_param_value(param_names_.at(x.order));
+      return sigma * sigma;
+    } else {
+      return 0.;
+    }
   }
 
   std::string name_;

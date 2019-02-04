@@ -164,14 +164,16 @@ static inline auto make_toy_linear_data(const double a = 5.,
   gen.seed(3);
   std::normal_distribution<> d{0., sigma};
   std::vector<double> features;
-  Eigen::VectorXd targets(n);
+  Eigen::VectorXd mean(n);
+  Eigen::VectorXd variance = sigma * sigma * Eigen::VectorXd::Ones(n);
 
   for (std::size_t i = 0; i < n; i++) {
     double x = static_cast<double>(i);
     features.push_back(x);
-    targets[i] = a + x * b + d(gen);
+    mean[i] = a + x * b + d(gen);
   }
 
+  const MarginalDistribution targets(mean, variance.asDiagonal());
   return RegressionDataset<double>(features, targets);
 }
 
