@@ -46,23 +46,23 @@ TEST(test_covariance_functions, test_build_covariance) {
  * In the following we test any covariance functions which should support
  * Eigen::Vector feature vectors.
  */
- template <typename T>
- class TestVectorCovarianceFunctions : public ::testing::Test {
+template <typename T>
+class TestVectorCovarianceFunctions : public ::testing::Test {
 
- public:
+public:
   T covariance_function;
 };
 
- typedef ::testing::Types<
+typedef ::testing::Types<
     SquaredExponential<EuclideanDistance>, SquaredExponential<RadialDistance>,
     Exponential<EuclideanDistance>, Exponential<AngularDistance>,
     Exponential<RadialDistance>>
     VectorCompatibleCovarianceFunctions;
 
- TYPED_TEST_CASE(TestVectorCovarianceFunctions,
+TYPED_TEST_CASE(TestVectorCovarianceFunctions,
                 VectorCompatibleCovarianceFunctions);
 
- TYPED_TEST(TestVectorCovarianceFunctions, WorksWithEigen) {
+TYPED_TEST(TestVectorCovarianceFunctions, WorksWithEigen) {
   const auto xs = points_on_a_line(5);
   Eigen::MatrixXd C = this->covariance_function(xs);
   assert(C.rows() == static_cast<Eigen::Index>(xs.size()));
@@ -71,7 +71,7 @@ TEST(test_covariance_functions, test_build_covariance) {
   C.inverse();
 }
 
- TYPED_TEST(TestVectorCovarianceFunctions, WorksDirectlyOnCovarianceterms) {
+TYPED_TEST(TestVectorCovarianceFunctions, WorksDirectlyOnCovarianceterms) {
   auto xs = points_on_a_line(5);
   Eigen::MatrixXd C = this->covariance_function(xs);
   assert(C.rows() == static_cast<Eigen::Index>(xs.size()));
@@ -80,7 +80,7 @@ TEST(test_covariance_functions, test_build_covariance) {
   C.inverse();
 }
 
- TYPED_TEST(TestVectorCovarianceFunctions, can_set_params) {
+TYPED_TEST(TestVectorCovarianceFunctions, can_set_params) {
 
   const ParameterStore params(this->covariance_function.get_params());
 
@@ -93,8 +93,8 @@ TEST(test_covariance_functions, test_build_covariance) {
   }
 }
 
- class DummyCovariance : public CovarianceFunction<DummyCovariance> {
- public:
+class DummyCovariance : public CovarianceFunction<DummyCovariance> {
+public:
   DummyCovariance(double foo_ = sqrt(2.), double bar_ = log(2.)) {
     foo.value = foo_;
     bar.value = bar_;
@@ -113,23 +113,23 @@ TEST(test_covariance_functions, test_build_covariance) {
  * In the following we test any covariance functions which should support
  * Eigen::Vector feature vectors.
  */
- template <typename T>
- class TestDoubleCovarianceFunctions : public ::testing::Test {
+template <typename T>
+class TestDoubleCovarianceFunctions : public ::testing::Test {
 
- public:
+public:
   T covariance_function;
 };
 
- typedef ::testing::Types<
+typedef ::testing::Types<
     DummyCovariance, IndependentNoise<double>, Polynomial<2>,
     SumOfCovarianceFunctions<IndependentNoise<double>, Polynomial<2>>,
     SumOfCovarianceFunctions<IndependentNoise<double>, DummyCovariance>>
     DoubleCompatibleCovarianceFunctions;
 
- TYPED_TEST_CASE(TestDoubleCovarianceFunctions,
+TYPED_TEST_CASE(TestDoubleCovarianceFunctions,
                 DoubleCompatibleCovarianceFunctions);
 
- TYPED_TEST(TestDoubleCovarianceFunctions, works_with_eigen) {
+TYPED_TEST(TestDoubleCovarianceFunctions, works_with_eigen) {
   auto xs = points_on_a_line(5);
   std::vector<double> features;
   const auto x_size = static_cast<Eigen::Index>(xs.size());
@@ -144,7 +144,7 @@ TEST(test_covariance_functions, test_build_covariance) {
   C.inverse();
 }
 
- TYPED_TEST(TestDoubleCovarianceFunctions, can_set_params) {
+TYPED_TEST(TestDoubleCovarianceFunctions, can_set_params) {
 
   const ParameterStore params(this->covariance_function.get_params());
 

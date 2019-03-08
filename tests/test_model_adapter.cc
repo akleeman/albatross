@@ -12,40 +12,44 @@
 #include <gtest/gtest.h>
 
 #include "test_utils.h"
-#include "GP"
-
 
 namespace albatross {
 
- template <typename CovFunc>
- class TestAdaptedModel : public GaussianProcessBase<double, CovFunc, TestAdaptedModel<CovFunc>> {
- public:
-   using Base = GaussianProcessBase<double, CovFunc, TestAdaptedModel>;
-//   friend Base;
+template <typename CovFunc>
+class TestAdaptedModel
+    : public GaussianProcessBase<CovFunc, TestAdaptedModel<CovFunc>> {
+public:
+  using Base = GaussianProcessBase<CovFunc, TestAdaptedModel<CovFunc>>;
 
-   TestAdaptedModel() {
-     this->params_["center"] = {1., std::make_shared<UniformPrior>(-10., 10.)};
-   }
+  template <typename FitFeatureType>
+  using FitType = Fit<GaussianProcessBase<CovFunc, TestAdaptedModel<CovFunc>>,
+                      FitFeatureType>;
 
-   std::vector<double> convert(const std::vector<AdaptedFeature> &features) const {
-     std::vector<double> converted;
-     for (const auto &f : features) {
-       converted.push_back(f.value - this->get_param_value("center"));
-     }
-     return converted;
-   }
+  TestAdaptedModel() {
+    this->params_["center"] = {1., std::make_shared<UniformPrior>(-10., 10.)};
+  }
 
-   auto fit_impl_(const std::vector<AdaptedFeature> &features,
-                  const MarginalDistribution &targets) const {
-     return Base::fit_impl_(convert(features), targets);
-   }
+  std::vector<double>
+  convert(const std::vector<AdaptedFeature> &features) const {
+    std::vector<double> converted;
+    for (const auto &f : features) {
+      converted.push_back(f.value - this->get_param_value("center"));
+    }
+    return converted;
+  }
 
-   JointDistribution predict_(const std::vector<AdaptedFeature> &features,
-                        PredictTypeIdentity<JointDistribution> &&) const {
-     return Base::predict_(convert(features), PredictTypeIdentity<JointDistribution>());
-   }
+  auto fit(const std::vector<AdaptedFeature> &features,
+           const MarginalDistribution &targets) const {
+    return Base::fit(convert(features), targets);
+  }
 
- };
+  JointDistribution predict(const std::vector<AdaptedFeature> &features,
+                            const FitType<double> &fit,
+                            PredictTypeIdentity<JointDistribution> &&) const {
+    return Base::predict(convert(features), fit,
+                         PredictTypeIdentity<JointDistribution>());
+  }
+};
 
 template <typename ModelType>
 void test_get_set(ModelType &model, const std::string &key) {
@@ -65,13 +69,10 @@ TEST(test_model_adapter, test_get_set_params) {
   auto params = model.get_params();
   // Make sure all the sub model params are in the adapted params
   for (const auto &pair : sqr_exp_params) {
-    std::cout << "key: " << pair.first << std::endl;
     test_get_set(model, pair.first);
   }
-  std::cout << "key: center" << std::endl;
   // And the higher level parameter.
   test_get_set(model, "center");
-  std::cout << "complete" << std::endl;
 };
 
 TEST(test_model_adapter, test_fit) {
@@ -80,19 +81,20 @@ TEST(test_model_adapter, test_fit) {
   using CovFunc = decltype(toy_covariance_function());
   TestAdaptedModel<CovFunc> adapted_model;
 
-  adapted_model.fit(adpated_dataset);
-  const auto adapted_pred = adapted_model.predict(adpated_dataset.features).joint();
+  const auto adapted_fit_model = adapted_model.get_fit_model(adpated_dataset);
+  const auto adapted_pred =
+      adapted_fit_model.get_prediction(adpated_dataset.features).joint();
 
-  GaussianProcessRegression<double, CovFunc> model;
+  GaussianProcessRegression<CovFunc> model;
 
   auto dataset = make_toy_linear_data();
-  model.fit(dataset);
-  const auto pred = model.predict(dataset.features).joint();
+  const auto fit_model = model.get_fit_model(dataset);
+  const auto pred = fit_model.get_prediction(dataset.features).joint();
 
   EXPECT_EQ(adapted_pred, pred);
 }
 
-//TEST(test_model_adapter, test_ransac_fit) {
+// TEST(test_model_adapter, test_ransac_fit) {
 //  auto dataset = make_adapted_toy_linear_data();
 //  TestAdaptedModel<decltype(toy_covariance_function())> adapted_model;
 //  adapted_model.fit(dataset);
@@ -105,8 +107,10 @@ TEST(test_model_adapter, test_fit) {
 //  std::size_t min_features = 3;
 //  std::size_t max_iterations = 20;
 //
-//  auto ransac_model = adapted_model->ransac_model(inlier_threshold, min_inliers,
-//                                                  min_features, max_iterations);
+//  auto ransac_model = adapted_model->ransac_model(inlier_threshold,
+//  min_inliers,
+//                                                  min_features,
+//                                                  max_iterations);
 //
 //  EvaluationMetric<JointDistribution> nll =
 //      evaluation_metrics::negative_log_likelihood;
@@ -128,7 +132,8 @@ TEST(test_model_adapter, test_fit) {
 //  // reasonable, and for the known outliers we assert the likelihood is
 //  // really really really small.
 //  for (Eigen::Index i = 0; i < scores.size(); i++) {
-//    double in_sample_error = fabs(in_sample_preds[i] - dataset.targets.mean[i]);
+//    double in_sample_error = fabs(in_sample_preds[i] -
+//    dataset.targets.mean[i]);
 //    if (i == 3 || i == 5) {
 //      EXPECT_GE(scores[i], 1.e5);
 //      EXPECT_GE(in_sample_error, 100.);

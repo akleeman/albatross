@@ -19,7 +19,7 @@
 
 namespace albatross {
 
- auto make_simple_covariance_function() {
+auto make_simple_covariance_function() {
   SquaredExponential<EuclideanDistance> squared_exponential(100., 100.);
   IndependentNoise<double> noise(0.1);
   return squared_exponential + noise;
@@ -27,7 +27,6 @@ namespace albatross {
 
 class MakeGaussianProcess {
 public:
-
   auto get_model() const {
     auto covariance = make_simple_covariance_function();
     return gp_from_covariance(covariance);
@@ -39,9 +38,12 @@ public:
 };
 //
 template <typename CovarianceFunc>
-class AdaptedGaussianProcess : public GaussianProcessBase<CovarianceFunc, AdaptedGaussianProcess<CovarianceFunc>> {
+class AdaptedGaussianProcess
+    : public GaussianProcessBase<CovarianceFunc,
+                                 AdaptedGaussianProcess<CovarianceFunc>> {
 public:
-  using Base = GaussianProcessBase<CovarianceFunc, AdaptedGaussianProcess<CovarianceFunc>>;
+  using Base = GaussianProcessBase<CovarianceFunc,
+                                   AdaptedGaussianProcess<CovarianceFunc>>;
 
   template <typename FitFeatureType>
   using GPFitType = Fit<Base, FitFeatureType>;
@@ -58,18 +60,18 @@ public:
   template <typename FitFeatureType>
   JointDistribution predict(const std::vector<AdaptedFeature> &features,
                             const GPFitType<FitFeatureType> &gp_fit,
-                             PredictTypeIdentity<JointDistribution> &&) const {
+                            PredictTypeIdentity<JointDistribution> &&) const {
     std::vector<double> converted;
     for (const auto &f : features) {
       converted.push_back(f.value);
     }
-    return Base::predict(converted, gp_fit, PredictTypeIdentity<JointDistribution>());
+    return Base::predict(converted, gp_fit,
+                         PredictTypeIdentity<JointDistribution>());
   }
 };
 
 class MakeAdaptedGaussianProcess {
 public:
-
   auto get_model() const {
     auto covariance = make_simple_covariance_function();
     AdaptedGaussianProcess<decltype(covariance)> gp;
@@ -80,7 +82,6 @@ public:
   RegressionDataset<AdaptedFeature> get_dataset() const {
     return make_adapted_toy_linear_data();
   }
-
 };
 
 class MakeLinearRegression {
@@ -98,8 +99,15 @@ public:
   ModelTestCase test_case;
 };
 
-typedef ::testing::Types<MakeLinearRegression, MakeGaussianProcess, MakeAdaptedGaussianProcess> ModelCreators;
+// typedef ::testing::Types<MakeLinearRegression, MakeGaussianProcess,
+//                         MakeAdaptedGaussianProcess>
+typedef ::testing::Types<MakeLinearRegression> ModelCreators;
 TYPED_TEST_CASE(RegressionModelTester, ModelCreators);
+
+Eigen::Index silly_function_to_increment_stack_pointer() {
+  Eigen::VectorXd x(10);
+  return x.size();
+}
 
 TYPED_TEST(RegressionModelTester, performs_reasonably_on_linear_data) {
   auto dataset = this->test_case.get_dataset();
@@ -116,8 +124,11 @@ TYPED_TEST(RegressionModelTester, performs_reasonably_on_linear_data) {
 TYPED_TEST(RegressionModelTester, test_predict_variants) {
   auto dataset = this->test_case.get_dataset();
   auto model = this->test_case.get_model();
+
   const auto fit_model = model.get_fit_model(dataset.features, dataset.targets);
+  silly_function_to_increment_stack_pointer();
   const auto pred = fit_model.get_prediction(dataset.features);
+  silly_function_to_increment_stack_pointer();
 
   const Eigen::VectorXd pred_mean = pred.mean();
 
@@ -128,58 +139,19 @@ TYPED_TEST(RegressionModelTester, test_predict_variants) {
   EXPECT_LE((pred_mean - joint.mean).norm(), 1e-8);
 }
 
-  //  const auto single_pred_joint =
-  //      model->template predict<JointDistribution>(dataset.features[0]);
-
-  //
-  //  EXPECT_NEAR(single_pred_joint.mean[0], mean_predictions[0], 1e-6);
-  //  if (joint_predictions.has_covariance()) {
-  //    EXPECT_NEAR(single_pred_joint.get_diagonal(0),
-  //                joint_predictions.get_diagonal(0), 1e-6);
-  //  } else {
-  //    EXPECT_FALSE(single_pred_joint.has_covariance());
-  //  }
-  //
-  //  const auto single_pred_marginal =
-  //      model->template predict<MarginalDistribution>(dataset.features[0]);
-  //  EXPECT_NEAR(single_pred_marginal.mean[0], mean_predictions[0], 1e-6);
-  //
-  //  if (joint_predictions.has_covariance()) {
-  //    EXPECT_NEAR(single_pred_marginal.get_diagonal(0),
-  //                joint_predictions.get_diagonal(0), 1e-6);
-  //  }
-  //
-  //  const auto single_pred_mean =
-  //      model->template predict<Eigen::VectorXd>(dataset.features[0]);
-  //  EXPECT_NEAR(single_pred_mean[0], mean_predictions[0], 1e-6);
-  //
-  //  for (Eigen::Index i = 0; i < joint_predictions.mean.size(); i++) {
-  //    EXPECT_NEAR(joint_predictions.mean[i], mean_predictions[i], 1e-6);
-  //    EXPECT_NEAR(joint_predictions.mean[i], marginal_predictions.mean[i],
-  //    1e-6);
-  //    if (joint_predictions.has_covariance()) {
-  //      EXPECT_NEAR(joint_predictions.covariance(i, i),
-  //                  marginal_predictions.covariance.diagonal()[i], 1e-6);
-  //    }
-  //  }
-
-
-//
 ///*
 // * Here we build two different datasets.  Each dataset consists of targets
-// which
-// * have been distorted by non-constant noise (heteroscedastic), we then
-// perform
-// * cross-validated evaluation of a GaussianProcess which takes that noise into
-// * account, and one which is agnostic of the added noise and assert that
-// taking
-// * noise into account improves the model.
+// * which have been distorted by non-constant noise (heteroscedastic), we then
+// * perform cross-validated evaluation of a GaussianProcess which takes that
+// * noise into  account, and one which is agnostic of the added noise and
+// assert
+// * that taking noise into account improves the model.
 // */
 // TEST(test_models, test_with_target_distribution) {
 //  auto dataset = make_heteroscedastic_toy_linear_data();
 //
 //  auto folds = leave_one_out(dataset);
-//  auto model = MakeGaussianProcess().create();
+//  auto model = MakeGaussianProcess().get_model();
 //  EvaluationMetric<Eigen::VectorXd> rmse =
 //      evaluation_metrics::root_mean_square_error;
 //  auto scores = cross_validated_scores(rmse, folds, model.get());

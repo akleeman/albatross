@@ -91,7 +91,7 @@ public:
 
   template <typename DummyType = Derived,
             typename std::enable_if<!has_name<DummyType>::value, int>::type = 0>
-  std::string get_name() {
+  std::string get_name() const {
     static_assert(std::is_same<DummyType, Derived>::value,
                   "never do covariance_function.get_name<T>()");
     return typeid(Derived).name();
@@ -99,7 +99,7 @@ public:
 
   template <typename DummyType = Derived,
             typename std::enable_if<has_name<DummyType>::value, int>::type = 0>
-  std::string get_name() {
+  std::string get_name() const {
     static_assert(std::is_same<DummyType, Derived>::value,
                   "never do covariance_function.get_name<T>()");
     return derived().name();
@@ -291,13 +291,13 @@ template <class LHS, class RHS>
 class SumOfCovarianceFunctions
     : public CovarianceFunction<SumOfCovarianceFunctions<LHS, RHS>> {
 public:
-  SumOfCovarianceFunctions() : lhs_(), rhs_() {};
+  SumOfCovarianceFunctions() : lhs_(), rhs_(){};
 
   SumOfCovarianceFunctions(const LHS &lhs, const RHS &rhs)
-      : lhs_(lhs), rhs_(rhs) {};
+      : lhs_(lhs), rhs_(rhs){};
 
   std::string name() const {
-    return "(" + lhs_.name() + "+" + rhs_.name() + ")";
+    return "(" + lhs_.get_name() + "+" + rhs_.get_name() + ")";
   }
 
   ParameterStore get_params() const {
@@ -362,14 +362,14 @@ template <class LHS, class RHS>
 class ProductOfCovarianceFunctions
     : public CovarianceFunction<ProductOfCovarianceFunctions<LHS, RHS>> {
 public:
-  ProductOfCovarianceFunctions() : lhs_(), rhs_() {};
+  ProductOfCovarianceFunctions() : lhs_(), rhs_(){};
   ProductOfCovarianceFunctions(const LHS &lhs, const RHS &rhs)
       : lhs_(lhs), rhs_(rhs) {
     ProductOfCovarianceFunctions();
   };
 
   std::string name() const {
-    return "(" + lhs_.name() + "*" + rhs_.name() + ")";
+    return "(" + lhs_.get_name() + "*" + rhs_.get_name() + ")";
   }
 
   ParameterStore get_params() const {

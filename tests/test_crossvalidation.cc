@@ -18,20 +18,21 @@
 
 namespace albatross {
 
-
 /*
  * Here we build two different datasets.  Each dataset consists of targets
- * which have been distorted by non-constant noise (heteroscedastic), we then perform cross-validated evaluation of a GaussianProcess which takes that noise into account, and one which is agnostic of the added noise and assert that taking noise into account improves the model.
+ * which have been distorted by non-constant noise (heteroscedastic), we then
+ * perform cross-validated evaluation of a GaussianProcess which takes that
+ * noise into account, and one which is agnostic of the added noise and assert
+ * that taking noise into account improves the model.
  */
- TEST(test_crossvalidation, test_mean) {
-   const auto dataset = make_toy_linear_data();
+TEST(test_crossvalidation, test_mean) {
+  const auto dataset = make_toy_linear_data();
 
-   MockModel model;
+  MockModel model;
 
-   const auto pred = model.cross_validate().predict(dataset.features).mean();
+  const auto pred = model.cross_validate().predict(dataset.features).mean();
 
-   std::cout << pred << std::endl;
-
+  std::cout << pred << std::endl;
 }
 //  auto dataset = make_heteroscedastic_toy_linear_data();
 //

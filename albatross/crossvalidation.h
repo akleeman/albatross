@@ -35,43 +35,43 @@ template <typename FeatureType> struct RegressionFold {
 template <typename ModelType>
 class CrossValidation : public ModelBase<CrossValidation<ModelType>> {
 
-
-
-//  // Because cross validation can never properly produce a full
-//  // joint distribution it is common to only use the marginal
-//  // predictions, hence the different default from predict.
-//  template <typename PredictType = MarginalDistribution>
-//  std::vector<PredictType> cross_validated_predictions(
-//      const std::vector<RegressionFold<FeatureType>> &folds) {
-//    // Iteratively make predictions and assemble the output vector
-//    std::vector<PredictType> predictions;
-//    for (std::size_t i = 0; i < folds.size(); i++) {
-//      fit(folds[i].train_dataset);
-//      predictions.push_back(
-//          predict<PredictType>(folds[i].test_dataset.features));
-//    }
-//    return predictions;
-//  }
-//
-//  std::vector<JointDistribution> cross_validated_predictions_(
-//      const RegressionDataset<FeatureType> &dataset,
-//      const FoldIndexer &fold_indexer,
-//      const detail::PredictTypeIdentity<JointDistribution> &identity) override {
-//
-//    this->fit(dataset);
-//    const FitType model_fit = this->get_fit();
-//    const std::vector<FoldIndices> indices = map_values(fold_indexer);
-//    const auto inverse_blocks = model_fit.train_ldlt.inverse_blocks(indices);
-//
-//    std::vector<JointDistribution> output;
-//    for (std::size_t i = 0; i < inverse_blocks.size(); i++) {
-//      Eigen::VectorXd yi = subset(indices[i], dataset.targets.mean);
-//      Eigen::VectorXd vi = subset(indices[i], model_fit.information);
-//      const auto A_inv = inverse_blocks[i].inverse();
-//      output.push_back(JointDistribution(yi - A_inv * vi, A_inv));
-//    }
-//    return output;
-//  }
+  //  // Because cross validation can never properly produce a full
+  //  // joint distribution it is common to only use the marginal
+  //  // predictions, hence the different default from predict.
+  //  template <typename PredictType = MarginalDistribution>
+  //  std::vector<PredictType> cross_validated_predictions(
+  //      const std::vector<RegressionFold<FeatureType>> &folds) {
+  //    // Iteratively make predictions and assemble the output vector
+  //    std::vector<PredictType> predictions;
+  //    for (std::size_t i = 0; i < folds.size(); i++) {
+  //      fit(folds[i].train_dataset);
+  //      predictions.push_back(
+  //          predict<PredictType>(folds[i].test_dataset.features));
+  //    }
+  //    return predictions;
+  //  }
+  //
+  //  std::vector<JointDistribution> cross_validated_predictions_(
+  //      const RegressionDataset<FeatureType> &dataset,
+  //      const FoldIndexer &fold_indexer,
+  //      const detail::PredictTypeIdentity<JointDistribution> &identity)
+  //      override {
+  //
+  //    this->fit(dataset);
+  //    const FitType model_fit = this->get_fit();
+  //    const std::vector<FoldIndices> indices = map_values(fold_indexer);
+  //    const auto inverse_blocks =
+  //    model_fit.train_ldlt.inverse_blocks(indices);
+  //
+  //    std::vector<JointDistribution> output;
+  //    for (std::size_t i = 0; i < inverse_blocks.size(); i++) {
+  //      Eigen::VectorXd yi = subset(indices[i], dataset.targets.mean);
+  //      Eigen::VectorXd vi = subset(indices[i], model_fit.information);
+  //      const auto A_inv = inverse_blocks[i].inverse();
+  //      output.push_back(JointDistribution(yi - A_inv * vi, A_inv));
+  //    }
+  //    return output;
+  //  }
 };
 
 template <typename ModelType>
@@ -82,21 +82,19 @@ CrossValidation<ModelType> ModelBase<ModelType>::cross_validate() const {
 template <typename ModelType, typename FeatureType>
 class Prediction<CrossValidation<ModelType>, FeatureType> {
 
- public:
-   Prediction(const CrossValidation<ModelType> &model, const std::vector<FeatureType> &features)
-       : model_(model), features_(features) {}
+public:
+  Prediction(const CrossValidation<ModelType> &model,
+             const std::vector<FeatureType> &features)
+      : model_(model), features_(features) {}
 
   /*
    * MEAN
    */
-  Eigen::VectorXd mean() const {
-    return Eigen::VectorXd::Ones(1);
-  }
+  Eigen::VectorXd mean() const { return Eigen::VectorXd::Ones(1); }
 
- private:
-   const CrossValidation<ModelType> &model_;
-   const std::vector<FeatureType> &features_;
-
+private:
+  const CrossValidation<ModelType> &model_;
+  const std::vector<FeatureType> &features_;
 };
 
 ///*
@@ -105,9 +103,9 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 // * test cases.  This function takes a map from FoldName to
 // * FoldIndices and a dataset and creates the resulting folds.
 // */
-//template <typename FeatureType>
-//static inline std::vector<RegressionFold<FeatureType>>
-//folds_from_fold_indexer(const RegressionDataset<FeatureType> &dataset,
+// template <typename FeatureType>
+// static inline std::vector<RegressionFold<FeatureType>>
+// folds_from_fold_indexer(const RegressionDataset<FeatureType> &dataset,
 //                        const FoldIndexer &groups) {
 //  // For a dataset with n features, we'll have n folds.
 //  const std::size_t n = dataset.features.size();
@@ -123,7 +121,8 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 //
 //    std::vector<FeatureType> train_features =
 //        subset(train_indices, dataset.features);
-//    MarginalDistribution train_targets = subset(train_indices, dataset.targets);
+//    MarginalDistribution train_targets = subset(train_indices,
+//    dataset.targets);
 //
 //    std::vector<FeatureType> test_features =
 //        subset(test_indices, dataset.features);
@@ -143,9 +142,9 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 //  return folds;
 //}
 //
-//template <typename FeatureType>
-//static inline FoldIndexer
-//leave_one_out_indexer(const RegressionDataset<FeatureType> &dataset) {
+// template <typename FeatureType>
+// static inline FoldIndexer
+// leave_one_out_indexer(const RegressionDataset<FeatureType> &dataset) {
 //  FoldIndexer groups;
 //  for (std::size_t i = 0; i < dataset.features.size(); i++) {
 //    FoldName group_name = std::to_string(i);
@@ -155,11 +154,12 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 //}
 //
 ///*
-// * Splits a dataset into cross validation folds where each fold contains all but
+// * Splits a dataset into cross validation folds where each fold contains all
+// but
 // * one predictor/target pair.
 // */
-//template <typename FeatureType>
-//static inline FoldIndexer leave_one_group_out_indexer(
+// template <typename FeatureType>
+// static inline FoldIndexer leave_one_group_out_indexer(
 //    const std::vector<FeatureType> &features,
 //    const std::function<FoldName(const FeatureType &)> &get_group_name) {
 //  FoldIndexer groups;
@@ -181,11 +181,12 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 //}
 //
 ///*
-// * Splits a dataset into cross validation folds where each fold contains all but
+// * Splits a dataset into cross validation folds where each fold contains all
+// but
 // * one predictor/target pair.
 // */
-//template <typename FeatureType>
-//static inline FoldIndexer leave_one_group_out_indexer(
+// template <typename FeatureType>
+// static inline FoldIndexer leave_one_group_out_indexer(
 //    const RegressionDataset<FeatureType> &dataset,
 //    const std::function<FoldName(const FeatureType &)> &get_group_name) {
 //  return leave_one_group_out_indexer(dataset.features, get_group_name);
@@ -195,9 +196,9 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 // * Generates cross validation folds which represent leave one out
 // * cross validation.
 // */
-//template <typename FeatureType>
-//static inline std::vector<RegressionFold<FeatureType>>
-//leave_one_out(const RegressionDataset<FeatureType> &dataset) {
+// template <typename FeatureType>
+// static inline std::vector<RegressionFold<FeatureType>>
+// leave_one_out(const RegressionDataset<FeatureType> &dataset) {
 //  return folds_from_fold_indexer<FeatureType>(
 //      dataset, leave_one_out_indexer<FeatureType>(dataset));
 //}
@@ -206,8 +207,8 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 // * Uses a `get_group_name` function to bucket each FeatureType into
 // * a group, then holds out one group at a time.
 // */
-//template <typename FeatureType>
-//static inline std::vector<RegressionFold<FeatureType>> leave_one_group_out(
+// template <typename FeatureType>
+// static inline std::vector<RegressionFold<FeatureType>> leave_one_group_out(
 //    const RegressionDataset<FeatureType> &dataset,
 //    const std::function<FoldName(const FeatureType &)> &get_group_name) {
 //  const FoldIndexer indexer =
@@ -216,7 +217,8 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 //}
 //
 /////*
-//// * An evaluation metric is a function that takes a prediction distribution and
+//// * An evaluation metric is a function that takes a prediction distribution
+/// and
 //// * corresponding targets and returns a single real value that summarizes
 //// * the quality of the prediction.
 //// */
@@ -247,7 +249,8 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 //// static inline Eigen::VectorXd
 //// compute_scores(const EvaluationMetric<Eigen::VectorXd> &metric,
 ////               const std::vector<RegressionFold<FeatureType>> &folds,
-////               const std::vector<Distribution<CovarianceType>> &predictions) {
+////               const std::vector<Distribution<CovarianceType>> &predictions)
+///{
 ////  std::vector<Eigen::VectorXd> converted;
 ////  for (const auto &pred : predictions) {
 ////    converted.push_back(pred.mean);
@@ -262,12 +265,14 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 //// template <typename FeatureType, typename PredictType = JointDistribution>
 //// static inline Eigen::VectorXd
 //// cross_validated_scores(const EvaluationMetric<PredictType> &metric,
-////                       const std::vector<RegressionFold<FeatureType>> &folds,
+////                       const std::vector<RegressionFold<FeatureType>>
+///&folds,
 ////                       RegressionModel<FeatureType> *model) {
 ////  // Create a vector of predictions.
 ////  std::vector<PredictType> predictions =
 ////      model->template cross_validated_predictions<PredictType>(folds);
-////  return compute_scores<FeatureType, PredictType>(metric, folds, predictions);
+////  return compute_scores<FeatureType, PredictType>(metric, folds,
+/// predictions);
 ////}
 ////
 /////*
@@ -283,9 +288,10 @@ class Prediction<CrossValidation<ModelType>, FeatureType> {
 ////  // Create a vector of predictions.
 ////  std::vector<PredictType> predictions =
 ////      model->template cross_validated_predictions<PredictType>(dataset,
-////                                                               fold_indexer);
+//// fold_indexer);
 ////  const auto folds = folds_from_fold_indexer(dataset, fold_indexer);
-////  return compute_scores<FeatureType, PredictType>(metric, folds, predictions);
+////  return compute_scores<FeatureType, PredictType>(metric, folds,
+/// predictions);
 ////}
 ////
 /////*

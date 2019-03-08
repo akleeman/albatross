@@ -115,8 +115,9 @@ inline std::vector<X> vector_set_difference(const std::vector<X> &x,
  * In other words, indices and indices_complement(indices) should
  * contain all the numbers between 0 and n-1
  */
-inline std::vector<std::size_t> indices_complement(const std::vector<std::size_t> &indices,
-                                                   const std::size_t n) {
+inline std::vector<std::size_t>
+indices_complement(const std::vector<std::size_t> &indices,
+                   const std::size_t n) {
   std::vector<std::size_t> all_indices(n);
   std::iota(all_indices.begin(), all_indices.end(), 0);
   return vector_set_difference(all_indices, indices);

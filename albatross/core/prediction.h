@@ -23,45 +23,55 @@ template <typename ModelType, typename FeatureType, typename FitType>
 class Prediction {
 
 public:
-  Prediction(const FitModel<ModelType, FitType> &fit_model,
+  Prediction(const ModelType &model, const FitType &fit,
              const std::vector<FeatureType> &features)
-      : fit_model_(fit_model), features_(features) {}
+      : model_(model), fit_(fit), features_(features) {}
+
+  Prediction(const ModelType &model, const FitType &fit,
+             std::vector<FeatureType> &&features)
+      : model_(model), fit_(fit), features_(std::move(features)) {}
 
   /*
    * MEAN
    */
+  template <typename DummyType = FeatureType,
+            typename std::enable_if<
+                has_valid_predict_mean<ModelType, DummyType, FitType>::value,
+                int>::type = 0>
+  Eigen::VectorXd mean() const {
+    static_assert(std::is_same<DummyType, FeatureType>::value,
+                  "never do prediction.mean<T>()");
+    return model_.predict_(features_, fit_,
+                           PredictTypeIdentity<Eigen::VectorXd>());
+  }
+
   template <
       typename DummyType = FeatureType,
       typename std::enable_if<
-          has_valid_predict_mean<ModelType, DummyType, FitType>::value, int>::type = 0>
+          !has_valid_predict_mean<ModelType, DummyType, FitType>::value &&
+              has_valid_predict_marginal<ModelType, DummyType, FitType>::value,
+          int>::type = 0>
   Eigen::VectorXd mean() const {
     static_assert(std::is_same<DummyType, FeatureType>::value,
                   "never do prediction.mean<T>()");
-    return fit_model_.model_.predict_(features_, fit_model_.fit_, PredictTypeIdentity<Eigen::VectorXd>());
-  }
-
-  template <typename DummyType = FeatureType,
-            typename std::enable_if<
-                !has_valid_predict_mean<ModelType, DummyType, FitType>::value &&
-                 has_valid_predict_marginal<ModelType, DummyType, FitType>::value,
-                int>::type = 0>
-  Eigen::VectorXd mean() const {
-    static_assert(std::is_same<DummyType, FeatureType>::value,
-                  "never do prediction.mean<T>()");
-    return fit_model_.model_.predict_(features_, fit_model_.fit_, PredictTypeIdentity<MarginalDistribution>())
+    return model_
+        .predict_(features_, fit_, PredictTypeIdentity<MarginalDistribution>())
         .mean;
   }
 
-  template <typename DummyType = FeatureType,
-            typename std::enable_if<
-                !has_valid_predict_mean<ModelType, DummyType, FitType>::value &&
-                    !has_valid_predict_marginal<ModelType, DummyType, FitType>::value &&
-                    has_valid_predict_joint<ModelType, DummyType, FitType>::value,
-                int>::type = 0>
+  template <
+      typename DummyType = FeatureType,
+      typename std::enable_if<
+          !has_valid_predict_mean<ModelType, DummyType, FitType>::value &&
+              !has_valid_predict_marginal<ModelType, DummyType,
+                                          FitType>::value &&
+              has_valid_predict_joint<ModelType, DummyType, FitType>::value,
+          int>::type = 0>
   Eigen::VectorXd mean() const {
     static_assert(std::is_same<DummyType, FeatureType>::value,
                   "never do prediction.mean<T>()");
-    return fit_model_.model_.predict_(features_, fit_model_.fit_, PredictTypeIdentity<JointDistribution>())
+    return model_
+        .predict_(features_, fit_, PredictTypeIdentity<JointDistribution>())
         .mean;
   }
 
@@ -69,27 +79,27 @@ public:
    * MARGINAL
    */
   template <typename DummyType = FeatureType,
-            typename std::enable_if<
-                has_valid_predict_marginal<ModelType, DummyType, FitType>::value,
-                int>::type = 0>
+            typename std::enable_if<has_valid_predict_marginal<
+                                        ModelType, DummyType, FitType>::value,
+                                    int>::type = 0>
   MarginalDistribution marginal() const {
     static_assert(std::is_same<DummyType, FeatureType>::value,
                   "never do prediction.marginal<T>()");
-    return fit_model_.model_.predict_(features_,
-                                      fit_model_.fit_,
+    return model_.predict_(features_, fit_,
                            PredictTypeIdentity<MarginalDistribution>());
   }
 
-  template <typename DummyType = FeatureType,
-            typename std::enable_if<
-                !has_valid_predict_marginal<ModelType, DummyType, FitType>::value &&
-                    has_valid_predict_joint<ModelType, DummyType, FitType>::value,
-                int>::type = 0>
+  template <
+      typename DummyType = FeatureType,
+      typename std::enable_if<
+          !has_valid_predict_marginal<ModelType, DummyType, FitType>::value &&
+              has_valid_predict_joint<ModelType, DummyType, FitType>::value,
+          int>::type = 0>
   MarginalDistribution marginal() const {
     static_assert(std::is_same<DummyType, FeatureType>::value,
                   "never do prediction.marginal<T>()");
-    const auto joint_pred =
-        fit_model_.model_.predict_(features_, fit_model_.fit_, PredictTypeIdentity<JointDistribution>());
+    const auto joint_pred = model_.predict_(
+        features_, fit_, PredictTypeIdentity<JointDistribution>());
     if (joint_pred.has_covariance()) {
       Eigen::VectorXd diag = joint_pred.covariance.diagonal();
       return MarginalDistribution(joint_pred.mean, diag.asDiagonal());
@@ -101,44 +111,50 @@ public:
   /*
    * JOINT
    */
-  template <
-      typename DummyType = FeatureType,
-      typename std::enable_if<
-          has_valid_predict_joint<ModelType, DummyType, FitType>::value, int>::type = 0>
+  template <typename DummyType = FeatureType,
+            typename std::enable_if<
+                has_valid_predict_joint<ModelType, DummyType, FitType>::value,
+                int>::type = 0>
   JointDistribution joint() const {
     static_assert(std::is_same<DummyType, FeatureType>::value,
                   "never do prediction.joint<T>()");
-    return fit_model_.model_.predict_(features_, fit_model_.fit_, PredictTypeIdentity<JointDistribution>());
+    return model_.predict_(features_, fit_,
+                           PredictTypeIdentity<JointDistribution>());
   }
 
   /*
    * CATCH FAILURE MODES
    */
-  template <typename DummyType = FeatureType,
-            typename std::enable_if<
-                !has_valid_predict_mean<ModelType, DummyType, FitType>::value &&
-                    !has_valid_predict_marginal<ModelType, DummyType, FitType>::value &&
-                    !has_valid_predict_joint<ModelType, DummyType, FitType>::value,
-                int>::type = 0>
+  template <
+      typename DummyType = FeatureType,
+      typename std::enable_if<
+          !has_valid_predict_mean<ModelType, DummyType, FitType>::value &&
+              !has_valid_predict_marginal<ModelType, DummyType,
+                                          FitType>::value &&
+              !has_valid_predict_joint<ModelType, DummyType, FitType>::value,
+          int>::type = 0>
   Eigen::VectorXd mean() const = delete; // No valid predict method found.
 
-  template <typename DummyType = FeatureType,
-            typename std::enable_if<
-                    !has_valid_predict_marginal<ModelType, DummyType, FitType>::value &&
-                    !has_valid_predict_joint<ModelType, DummyType, FitType>::value,
-                int>::type = 0>
-  Eigen::VectorXd marginal() const = delete; // No valid predict marginal method found.
+  template <
+      typename DummyType = FeatureType,
+      typename std::enable_if<
+          !has_valid_predict_marginal<ModelType, DummyType, FitType>::value &&
+              !has_valid_predict_joint<ModelType, DummyType, FitType>::value,
+          int>::type = 0>
+  Eigen::VectorXd
+  marginal() const = delete; // No valid predict marginal method found.
 
   template <typename DummyType = FeatureType,
             typename std::enable_if<
-                    !has_valid_predict_joint<ModelType, DummyType, FitType>::value,
+                !has_valid_predict_joint<ModelType, DummyType, FitType>::value,
                 int>::type = 0>
-  Eigen::VectorXd joint() const = delete; // No valid predict joint method found.
+  Eigen::VectorXd
+  joint() const = delete; // No valid predict joint method found.
 
 private:
-  const FitModel<ModelType, FitType> &fit_model_;
+  const ModelType &model_;
+  const FitType &fit_;
   const std::vector<FeatureType> &features_;
 };
-
 }
 #endif

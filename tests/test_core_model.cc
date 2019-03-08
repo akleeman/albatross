@@ -23,7 +23,6 @@ TEST(test_core_model, test_get_name) {
   EXPECT_EQ(m.get_name(), "mock_model");
 }
 
-
 /*
  * Simply makes sure that a BaseModel that should be able to
  * make perfect predictions compiles and runs as expected.
@@ -33,7 +32,8 @@ TEST(test_core_model, test_fit_predict) {
 
   MockModel m;
   const auto fit_model = m.get_fit_model(dataset.features, dataset.targets);
-  Eigen::VectorXd predictions = fit_model.get_prediction(dataset.features).mean();
+  Eigen::VectorXd predictions =
+      fit_model.get_prediction(dataset.features).mean();
 
   EXPECT_LT((predictions - dataset.targets.mean).norm(), 1e-10);
 }
@@ -49,11 +49,11 @@ TEST(test_core_model, test_fit_predict_different_types) {
     derived_features.push_back({f});
   }
 
-  Eigen::VectorXd predictions = fit_model.get_prediction(derived_features).mean();
+  Eigen::VectorXd predictions =
+      fit_model.get_prediction(derived_features).mean();
 
   EXPECT_LT((predictions - dataset.targets.mean).norm(), 1e-10);
 }
-
 
 template <typename ModelType>
 void test_get_set(ModelBase<ModelType> &model, const std::string &key) {

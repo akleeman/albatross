@@ -15,7 +15,7 @@
 
 #include "Core"
 
-//#include "GP"
+#include "GP"
 
 #include <random>
 
@@ -43,23 +43,21 @@ static inline auto make_toy_linear_data(const double a = 5.,
   return RegressionDataset<double>(features, targets);
 }
 
-
- class MockParameterHandler : public ParameterHandlingMixin {
- public:
+class MockParameterHandler : public ParameterHandlingMixin {
+public:
   MockParameterHandler(const ParameterStore &params)
       : ParameterHandlingMixin(params){};
 };
 
- class TestParameterHandler : public ParameterHandlingMixin {
- public:
+class TestParameterHandler : public ParameterHandlingMixin {
+public:
   TestParameterHandler() : ParameterHandlingMixin() {
     params_ = {{"A", 1.}, {"B", 2.}};
   };
 };
 
-
- static inline void
- expect_parameter_vector_equal(const std::vector<ParameterValue> &x,
+static inline void
+expect_parameter_vector_equal(const std::vector<ParameterValue> &x,
                               const std::vector<ParameterValue> &y) {
   for (std::size_t i = 0; i < x.size(); i++) {
     EXPECT_DOUBLE_EQ(x[i], y[i]);
@@ -67,8 +65,6 @@ static inline auto make_toy_linear_data(const double a = 5.,
   EXPECT_EQ(x.size(), y.size());
 }
 
-
-//
 // static inline auto
 // make_heteroscedastic_toy_linear_data(const double a = 5., const double b =
 // 1.,
@@ -96,25 +92,24 @@ static inline auto make_toy_linear_data(const double a = 5.,
 //
 //  return RegressionDataset<double>(dataset.features, target_dist);
 //}
-//
 
-//inline auto toy_covariance_function() {
-//  using Noise = IndependentNoise<double>;
-//  SquaredExponential<EuclideanDistance> squared_exponential(100., 100.);
-//  IndependentNoise<double> noise = Noise(0.1);
-//  auto covariance = squared_exponential + noise;
-//  return covariance;
-//}
+inline auto toy_covariance_function() {
+  using Noise = IndependentNoise<double>;
+  SquaredExponential<EuclideanDistance> squared_exponential(100., 100.);
+  IndependentNoise<double> noise = Noise(0.1);
+  auto covariance = squared_exponential + noise;
+  return covariance;
+}
 
 /*
  * Here we create data and a model that will make it easier to test
  * that models using the model_adapter.h interface work.
  */
- struct AdaptedFeature {
+struct AdaptedFeature {
   double value;
 };
 
- static inline auto make_adapted_toy_linear_data(const double a = 5.,
+static inline auto make_adapted_toy_linear_data(const double a = 5.,
                                                 const double b = 1.,
                                                 const double sigma = 0.1,
                                                 const std::size_t n = 10) {
@@ -141,7 +136,7 @@ static inline auto make_toy_linear_data(const double a = 5.,
 //  RegressionDataset<double> dataset_;
 //};
 //
- inline auto random_spherical_points(std::size_t n = 10, double radius = 1.,
+inline auto random_spherical_points(std::size_t n = 10, double radius = 1.,
                                     int seed = 5) {
   std::random_device rd{};
   std::mt19937 gen{rd()};

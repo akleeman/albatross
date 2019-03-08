@@ -37,8 +37,7 @@ struct ContainsMockFeature {
   MockFeature mock;
 };
 
-template <>
-struct Fit<MockModel> {
+template <> struct Fit<MockModel> {
   std::map<int, double> train_data;
 
   template <class Archive> void serialize(Archive &ar) {
@@ -63,9 +62,7 @@ public:
     this->bar = {bar_, std::make_shared<PositivePrior>()};
   };
 
-  std::string name() const {
-    return "mock_model";
-  }
+  std::string name() const { return "mock_model"; }
 
   //  std::string get_name() const override { return "mock_model"; };
 

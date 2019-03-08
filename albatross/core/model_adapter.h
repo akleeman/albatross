@@ -28,15 +28,14 @@ namespace albatross {
 template <typename FeatureType, typename SubModelType>
 class AdaptedRegressionModel : public ModelBase<SubModelType> {
 public:
-
   AdaptedRegressionModel() : sub_model_(){};
   AdaptedRegressionModel(const SubModelType &sub_model)
       : sub_model_(sub_model){};
 
   // This function will often be required by AdaptedModels
   // The default implementation is a null operation.
-  template <typename
-  convert_feature(const FeatureType &parent_feature) const = 0;
+  template <typename convert_feature(const FeatureType &parent_feature) const =
+                0;
 
   std::string get_name() const override { return sub_model_.get_name(); };
 
