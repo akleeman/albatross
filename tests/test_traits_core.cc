@@ -145,6 +145,12 @@ TEST(test_traits_core, test_fit_type) {
                                 fit_type<HasValidXYFitImpl, X>::type>::value));
   EXPECT_TRUE(bool(std::is_same<Fit<HasValidXYFitImpl, Y>,
                                 fit_type<HasValidXYFitImpl, Y>::type>::value));
+  EXPECT_TRUE(
+      bool(std::is_same<Fit<HasValidAndInvalidFitImpl, X>,
+                        fit_type<HasValidAndInvalidFitImpl, X>::type>::value));
+  //  EXPECT_FALSE(
+  //      bool(std::is_same<Fit<HasPrivateValidFitImpl, X>,
+  //                        fit_type<HasPrivateValidFitImpl, X>::type>::value));
 }
 
 template <typename T> struct Base {};
