@@ -65,33 +65,33 @@ expect_parameter_vector_equal(const std::vector<ParameterValue> &x,
   EXPECT_EQ(x.size(), y.size());
 }
 
-// static inline auto
-// make_heteroscedastic_toy_linear_data(const double a = 5., const double b =
-// 1.,
-//                                     const double sigma = 0.1) {
-//
-//  std::random_device rd{};
-//  std::mt19937 gen{rd()};
-//  gen.seed(7);
-//  std::normal_distribution<> d{0., 1.};
-//
-//  RegressionDataset<double> dataset = make_toy_linear_data(a, b, sigma);
-//
-//  auto targets = dataset.targets.mean;
-//  auto variance = Eigen::VectorXd(targets.size());
-//
-//  for (int i = 0; i < targets.size(); i++) {
-//    double std = 0.1 * fabs(dataset.features[i]);
-//    targets[i] += std * d(gen);
-//    variance[i] = sigma * sigma + std * std;
-//  }
-//
-//  auto diag_matrix = variance.asDiagonal();
-//
-//  MarginalDistribution target_dist(targets, diag_matrix);
-//
-//  return RegressionDataset<double>(dataset.features, target_dist);
-//}
+ static inline auto
+ make_heteroscedastic_toy_linear_data(const double a = 5., const double b =
+ 1.,
+                                     const double sigma = 0.1) {
+
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  gen.seed(7);
+  std::normal_distribution<> d{0., 1.};
+
+  RegressionDataset<double> dataset = make_toy_linear_data(a, b, sigma);
+
+  auto targets = dataset.targets.mean;
+  auto variance = Eigen::VectorXd(targets.size());
+
+  for (int i = 0; i < targets.size(); i++) {
+    double std = 0.1 * fabs(dataset.features[i]);
+    targets[i] += std * d(gen);
+    variance[i] = sigma * sigma + std * std;
+  }
+
+  auto diag_matrix = variance.asDiagonal();
+
+  MarginalDistribution target_dist(targets, diag_matrix);
+
+  return RegressionDataset<double>(dataset.features, target_dist);
+}
 
 inline auto toy_covariance_function() {
   using Noise = IndependentNoise<double>;

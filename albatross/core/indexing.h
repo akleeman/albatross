@@ -99,6 +99,40 @@ symmetric_subset(const std::vector<SizeType> &indices,
   return subset(indices, v.diagonal()).asDiagonal();
 }
 
+/*
+ * Set a subset of an Eigen::Vector.  If this worked it'd be
+ * the equivalent of:
+ *
+ *     to[indices] = from;
+ */
+template <typename SizeType>
+inline void set_subset(const std::vector<SizeType> &indices,
+                       const Eigen::VectorXd &from, Eigen::VectorXd *to) {
+  assert(static_cast<Eigen::Index>(indices.size()) == from.size());
+  for (std::size_t i = 0; i < indices.size(); ++i) {
+    (*to)[static_cast<Eigen::Index>(indices[i])] =
+        from[static_cast<Eigen::Index>(i)];
+  }
+}
+
+/*
+ * Set a subset of an Eigen::Vector.  If this worked it'd be
+ * the equivalent of:
+ *
+ *     to[indices] = from;
+ */
+template <typename SizeType, typename Scalar, int Size>
+inline Eigen::VectorXd
+set_subset(const std::vector<SizeType> &indices,
+           const Eigen::DiagonalMatrix<Scalar, Size> &from,
+           Eigen::DiagonalMatrix<Scalar, Size> *to) {
+  assert(static_cast<Eigen::Index>(indices.size()) == from.size());
+  for (std::size_t i = 0; i < indices.size(); i++) {
+    to.diagonal()[static_cast<Eigen::Index>(indices[i])] =
+        from.diagonal()[static_cast<Eigen::Index>(i)];
+  }
+}
+
 template <typename X>
 inline std::vector<X> vector_set_difference(const std::vector<X> &x,
                                             const std::vector<X> &y) {

@@ -152,9 +152,9 @@ public:
   joint() const = delete; // No valid predict joint method found.
 
 private:
-  const ModelType &model_;
-  const FitType &fit_;
-  const std::vector<FeatureType> &features_;
+  const ModelType model_;
+  const FitType fit_;
+  const std::vector<FeatureType> features_;
 };
 }
 #endif

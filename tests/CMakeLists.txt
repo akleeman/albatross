@@ -18,7 +18,7 @@ EXCLUDE_FROM_ALL
 ##test_functional_model.cc
 #test_map_utils.cc
 #test_model_adapter.cc
-#test_models.cc
+test_models.cc
 ##test_outlier.cc
 #test_prediction.cc
 #test_parameter_handling_mixin.cc

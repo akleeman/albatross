@@ -115,6 +115,8 @@ public:
   auto get_fit_model(const RegressionDataset<FeatureType> &dataset) const {
     return fit_(dataset.features, dataset.targets);
   }
+
+  CrossValidation<ModelType> cross_validate() const;
 };
 }
 #endif

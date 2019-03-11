@@ -14,9 +14,39 @@
 
 #include "test_utils.h"
 
-#include "crossvalidation.h"
+#include "Evaluation"
 
 namespace albatross {
+
+auto get_linear_gp() {
+  const Polynomial<1> linear;
+  const IndependentNoise<double> noise;
+  auto model = gp_from_covariance(linear + noise);
+  return model;
+}
+
+TEST(test_crossvalidation, test_get_predictions) {
+  const auto dataset = make_toy_linear_data();
+
+  const auto model = get_linear_gp();
+
+  const auto predictions = model.cross_validate().get_predictions(dataset);
+}
+
+TEST(test_crossvalidation, test_get_prediction) {
+  const auto dataset = make_toy_linear_data();
+
+  const Polynomial<1> linear;
+  auto model = get_linear_gp();
+
+  const auto prediction = model.cross_validate().get_prediction(dataset);
+
+  const auto pred_mean = prediction.mean();
+
+  const auto pred_marginal = prediction.marginal();
+
+  EXPECT_EQ(pred_mean, pred_marginal.mean);
+}
 
 /*
  * Here we build two different datasets.  Each dataset consists of targets
@@ -25,15 +55,13 @@ namespace albatross {
  * noise into account, and one which is agnostic of the added noise and assert
  * that taking noise into account improves the model.
  */
-TEST(test_crossvalidation, test_mean) {
-  const auto dataset = make_toy_linear_data();
-
-  MockModel model;
-
-  const auto pred = model.cross_validate().predict(dataset.features).mean();
-
-  std::cout << pred << std::endl;
-}
+// TEST(test_crossvalidation, test_get_predictions) {
+//  const auto dataset = make_toy_linear_data();
+//
+//  MockModel model;
+//
+//  const auto predictions = model.cross_validate().get_predictions(dataset);
+//
 //  auto dataset = make_heteroscedastic_toy_linear_data();
 //
 //  auto folds = leave_one_out(dataset);

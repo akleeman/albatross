@@ -37,10 +37,6 @@ template <typename CovarianceType> struct Distribution {
 
   double get_diagonal(Eigen::Index i) const;
 
-  template <typename SizeType>
-  Distribution<CovarianceType>
-  subset(const std::vector<SizeType> &indices) const;
-
   bool operator==(const Distribution<CovarianceType> &other) const {
     return (mean == other.mean && covariance == other.covariance);
   }
@@ -113,6 +109,17 @@ Distribution<CovarianceType> subset(const std::vector<SizeType> &indices,
     return Distribution<CovarianceType>(subset_mean, subset_cov);
   } else {
     return Distribution<CovarianceType>(subset_mean);
+  }
+}
+
+template <typename SizeType, typename CovarianceType>
+void set_subset(const std::vector<SizeType> &indices,
+                const Distribution<CovarianceType> &from,
+                Distribution<CovarianceType> *to) {
+  set_subset(indices, from.mean, &to->mean);
+  assert(from.has_covariance() == to->has_covariance());
+  if (from.has_covariance()) {
+    set_subset(indices, from.covariance, &to->covariance);
   }
 }
 

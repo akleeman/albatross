@@ -80,6 +80,14 @@ using FoldIndices = std::vector<std::size_t>;
 using FoldName = std::string;
 using FoldIndexer = std::map<FoldName, FoldIndices>;
 
+template <typename FeatureType> struct RegressionFold;
+
+template <typename FeatureType>
+using RegressionFolds = std::vector<RegressionFold<FeatureType>>;
+
+template <typename FeatureType>
+using GrouperFunction = std::function<FoldName(const FeatureType &)>;
+
 template <typename FeatureType>
 using IndexerFunction =
     std::function<FoldIndexer(const RegressionDataset<FeatureType> &)>;
