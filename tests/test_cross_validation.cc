@@ -12,41 +12,39 @@
 
 #include <gtest/gtest.h>
 
-#include "test_utils.h"
+#include "test_models.h"
 
 #include "Evaluation"
 
 namespace albatross {
 
-auto get_linear_gp() {
-  const Polynomial<1> linear;
-  const IndependentNoise<double> noise;
-  auto model = gp_from_covariance(linear + noise);
-  return model;
-}
-
-TEST(test_crossvalidation, test_get_predictions) {
-  const auto dataset = make_toy_linear_data();
-
-  const auto model = get_linear_gp();
-
-  const auto predictions = model.cross_validate().get_predictions(dataset);
-}
-
-TEST(test_crossvalidation, test_get_prediction) {
-  const auto dataset = make_toy_linear_data();
-
-  const Polynomial<1> linear;
-  auto model = get_linear_gp();
+TYPED_TEST_P(RegressionModelTester, test_cross_validation_variants) {
+  auto dataset = this->test_case.get_dataset();
+  auto model = this->test_case.get_model();
 
   const auto prediction = model.cross_validate().get_prediction(dataset);
 
-  const auto pred_mean = prediction.mean();
-
-  const auto pred_marginal = prediction.marginal();
-
-  EXPECT_EQ(pred_mean, pred_marginal.mean);
+  expect_predict_variants_consistent(prediction);
 }
+
+TYPED_TEST_P(RegressionModelTester, test_get_predictions) {
+  auto dataset = this->test_case.get_dataset();
+  auto model = this->test_case.get_model();
+
+  const auto predictions = model.cross_validate().get_predictions(dataset);
+
+  for (const auto &pred : predictions) {
+    expect_predict_variants_consistent(pred);
+  }
+
+ }
+
+REGISTER_TYPED_TEST_CASE_P(RegressionModelTester,
+                           test_cross_validation_variants,
+                           test_get_predictions);
+
+INSTANTIATE_TYPED_TEST_CASE_P(test_cross_validation, RegressionModelTester,
+                              ExampleModels);
 
 /*
  * Here we build two different datasets.  Each dataset consists of targets

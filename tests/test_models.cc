@@ -10,107 +10,11 @@
  * WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#include <gtest/gtest.h>
-
-#include "test_utils.h"
-
-#include "GP"
-#include "models/least_squares.h"
+#include "test_models.h"
 
 namespace albatross {
 
-auto make_simple_covariance_function() {
-  SquaredExponential<EuclideanDistance> squared_exponential(100., 100.);
-  IndependentNoise<double> noise(0.1);
-  return squared_exponential + noise;
-}
-
-class MakeGaussianProcess {
-public:
-  auto get_model() const {
-    auto covariance = make_simple_covariance_function();
-    return gp_from_covariance(covariance);
-  }
-
-  RegressionDataset<double> get_dataset() const {
-    return make_toy_linear_data();
-  }
-};
-
-
-template <typename CovarianceFunc>
-class AdaptedGaussianProcess
-    : public GaussianProcessBase<CovarianceFunc,
-                                 AdaptedGaussianProcess<CovarianceFunc>> {
-public:
-  using Base = GaussianProcessBase<CovarianceFunc,
-                                   AdaptedGaussianProcess<CovarianceFunc>>;
-
-  template <typename FitFeatureType>
-  using GPFitType = Fit<Base, FitFeatureType>;
-
-  auto fit(const std::vector<AdaptedFeature> &features,
-           const MarginalDistribution &targets) const {
-    std::vector<double> converted;
-    for (const auto &f : features) {
-      converted.push_back(f.value);
-    }
-    return Base::fit(converted, targets);
-  }
-
-  template <typename FitFeatureType>
-  JointDistribution predict(const std::vector<AdaptedFeature> &features,
-                            const GPFitType<FitFeatureType> &gp_fit,
-                            PredictTypeIdentity<JointDistribution> &&) const {
-    std::vector<double> converted;
-    for (const auto &f : features) {
-      converted.push_back(f.value);
-    }
-    return Base::predict(converted, gp_fit,
-                         PredictTypeIdentity<JointDistribution>());
-  }
-};
-
-class MakeAdaptedGaussianProcess {
-public:
-  auto get_model() const {
-    auto covariance = make_simple_covariance_function();
-    AdaptedGaussianProcess<decltype(covariance)> gp;
-
-    return gp;
-  }
-
-  RegressionDataset<AdaptedFeature> get_dataset() const {
-    return make_adapted_toy_linear_data();
-  }
-};
-
-class MakeLinearRegression {
-public:
-  LinearRegression get_model() const { return LinearRegression(); }
-
-  RegressionDataset<double> get_dataset() const {
-    return make_toy_linear_data();
-  }
-};
-
-template <typename ModelTestCase>
-class RegressionModelTester : public ::testing::Test {
-public:
-  ModelTestCase test_case;
-};
-
-typedef ::testing::Types<MakeLinearRegression, MakeGaussianProcess,
-                         MakeAdaptedGaussianProcess>
-    ModelCreators;
-TYPED_TEST_CASE(RegressionModelTester, ModelCreators);
-
-Eigen::Index silly_function_to_increment_stack_pointer() {
-  Eigen::VectorXd x(10);
-  return x.size();
-}
-
-TYPED_TEST(RegressionModelTester, performs_reasonably_on_linear_data) {
+TYPED_TEST_P(RegressionModelTester, test_performs_reasonably_on_linear_data) {
   auto dataset = this->test_case.get_dataset();
   auto model = this->test_case.get_model();
 
@@ -122,7 +26,12 @@ TYPED_TEST(RegressionModelTester, performs_reasonably_on_linear_data) {
   EXPECT_LE(rmse, 0.5);
 }
 
-TYPED_TEST(RegressionModelTester, test_predict_variants) {
+Eigen::Index silly_function_to_increment_stack_pointer() {
+  Eigen::VectorXd x(10);
+  return x.size();
+}
+
+TYPED_TEST_P(RegressionModelTester, test_predict_variants) {
   auto dataset = this->test_case.get_dataset();
   auto model = this->test_case.get_model();
 
@@ -131,19 +40,14 @@ TYPED_TEST(RegressionModelTester, test_predict_variants) {
   const auto pred = fit_model.get_prediction(dataset.features);
   silly_function_to_increment_stack_pointer();
 
-  const Eigen::VectorXd pred_mean = pred.mean();
-
-  const MarginalDistribution marginal = pred.marginal();
-  EXPECT_LE((pred_mean - marginal.mean).norm(), 1e-8);
-
-  const JointDistribution joint = pred.joint();
-  EXPECT_LE((pred_mean - joint.mean).norm(), 1e-8);
-
-  if (joint.has_covariance()) {
-    EXPECT_LE(
-        (marginal.covariance.diagonal() - joint.covariance.diagonal()).norm(),
-        1e-8);
-  }
+  expect_predict_variants_consistent(pred);
 }
+
+REGISTER_TYPED_TEST_CASE_P(RegressionModelTester,
+                           test_performs_reasonably_on_linear_data,
+                           test_predict_variants);
+
+INSTANTIATE_TYPED_TEST_CASE_P(test_models, RegressionModelTester,
+                              ExampleModels);
 
 } // namespace albatross

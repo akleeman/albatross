@@ -65,9 +65,8 @@ expect_parameter_vector_equal(const std::vector<ParameterValue> &x,
   EXPECT_EQ(x.size(), y.size());
 }
 
- static inline auto
- make_heteroscedastic_toy_linear_data(const double a = 5., const double b =
- 1.,
+static inline auto
+make_heteroscedastic_toy_linear_data(const double a = 5., const double b = 1.,
                                      const double sigma = 0.1) {
 
   std::random_device rd{};

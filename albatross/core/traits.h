@@ -183,6 +183,44 @@ template <typename T, typename FeatureType, typename FitType>
 using has_valid_predict_joint =
     has_valid_predict<T, FeatureType, FitType, JointDistribution>;
 
+template <typename T> class has_mean {
+  template <typename C,
+            typename ReturnType = decltype(std::declval<const C>().mean())>
+  static
+      typename std::enable_if<std::is_same<Eigen::VectorXd, ReturnType>::value,
+                              std::true_type>::type
+      test(C *);
+  template <typename> static std::false_type test(...);
+
+public:
+  static constexpr bool value = decltype(test<T>(0))::value;
+};
+
+template <typename T> class has_marginal {
+  template <typename C,
+            typename ReturnType = decltype(std::declval<const C>().marginal())>
+  static typename std::enable_if<
+      std::is_same<MarginalDistribution, ReturnType>::value,
+      std::true_type>::type
+  test(C *);
+  template <typename> static std::false_type test(...);
+
+public:
+  static constexpr bool value = decltype(test<T>(0))::value;
+};
+
+template <typename T> class has_joint {
+  template <typename C,
+            typename ReturnType = decltype(std::declval<const C>().joint())>
+  static typename std::enable_if<
+      std::is_same<JointDistribution, ReturnType>::value, std::true_type>::type
+  test(C *);
+  template <typename> static std::false_type test(...);
+
+public:
+  static constexpr bool value = decltype(test<T>(0))::value;
+};
+
 } // namespace albatross
 
 #endif
