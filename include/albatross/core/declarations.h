@@ -57,10 +57,8 @@ using ParameterStore = std::map<ParameterKey, Parameter>;
  */
 template <typename CovarianceType> struct Distribution;
 
-using JointDistribution = Distribution<Eigen::MatrixXd>;
-using DiagonalMatrixXd =
-    Eigen::SerializableDiagonalMatrix<double, Eigen::Dynamic>;
-using MarginalDistribution = Distribution<DiagonalMatrixXd>;
+struct JointDistribution;
+struct MarginalDistribution;
 
 /*
  * Models

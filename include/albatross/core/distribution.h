@@ -110,6 +110,32 @@ void set_subset(const Distribution<CovarianceType> &from,
   }
 }
 
+using DiagonalMatrixXd =
+    Eigen::SerializableDiagonalMatrix<double, Eigen::Dynamic>;
+
+struct MarginalDistribution : public Distribution<DiagonalMatrixXd> {
+public:
+  using Distribution<DiagonalMatrixXd>::Distribution;
+
+  operator Eigen::VectorXd() const {
+    return mean;
+  }
+};
+
+struct JointDistribution : public Distribution<Eigen::MatrixXd> {
+public:
+
+  using Distribution<Eigen::MatrixXd>::Distribution;
+
+  operator Eigen::VectorXd() const {
+    return mean;
+  }
+
+  operator MarginalDistribution() const {
+    return MarginalDistribution(mean, covariance.diagonal().asDiagonal());
+  }
+};
+
 } // namespace albatross
 
 #endif
