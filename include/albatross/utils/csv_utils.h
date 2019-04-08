@@ -244,6 +244,20 @@ write_to_csv(std::ostream &stream,
   }
 }
 
+template <typename FeatureType>
+inline void
+write_to_csv(std::ostream &stream,
+             const std::vector<RegressionDataset<FeatureType>> &datasets) {
+
+  std::vector<MarginalDistribution> zero_predictions;
+  for (const auto &d : datasets) {
+    Eigen::VectorXd zeros = Eigen::VectorXd::Zero(d.targets.mean.size());
+    zero_predictions.emplace_back(MarginalDistribution(zeros));
+  }
+
+  write_to_csv(stream, datasets, zero_predictions);
+}
+
 template <typename _Scalar, int _Rows, int _Cols>
 inline void write_to_csv(std::ostream &stream,
                          const Eigen::Matrix<_Scalar, _Rows, _Cols> &x) {

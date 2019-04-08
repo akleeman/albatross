@@ -44,7 +44,6 @@ add_custom_target(run_temperature_example
   COMMENT "Running temperature_example"
   )
 
-
 add_executable(call_trace_example
   call_trace_example.cc
   )
@@ -59,11 +58,27 @@ add_custom_target(run_call_trace_example
   COMMENT "Running call_trace_example"
   )
 
+add_executable(patchwork_example
+  patchwork_example.cc
+  )
+target_link_libraries(patchwork_example
+  albatross
+  gflags
+  pthread
+  nlopt
+  )
+add_custom_target(run_patchwork_example
+  DEPENDS patchwork_example
+  COMMAND patchwork_example -input ${PROJECT_SOURCE_DIR}/examples/sinc_input.csv -output ./sinc_predictions.csv
+  COMMENT "Running inspection_example"
+  )
+
 set(albatross_example_BINARIES
   sinc_example
   temperature_example
   call_trace_example
   inspection_example
+  patchwork_example
   )
 foreach(TARGET IN LISTS albatross_example_BINARIES)
   target_compile_options(${TARGET} PRIVATE ${albatross_COMPILE_OPTIONS})
