@@ -180,46 +180,48 @@ public:
         b.diagonal() += 1e-6 * Eigen::VectorXd::Ones(b.rows());
       }
     }
-    /*
-     *
-     * The end goal here is to produce a vector, v, and matrix, C, such that
-     * for a prediction, f*, we can do,
-     *
-     *     [f*|f=y] ~ N(K_*u * v , K_** - K_*u * C^-1 * K_u*)
-     *
-     *  and it would match the desired prediction described above,
-     *
-     *     [f*|f=y] ~ N(K_*u S K_uf^-1 A^-1 y, K_** − Q_** + K_*u S K_u*)
-     *
-     *  we can find v easily,
-     *
-     *     v = S K_uf A^-1 y
-     *
-     *  and to get C we need to do some algebra,
-     *
-     *     K_** - K_*u * C^-1 * K_u* = K_** - Q_** + K_*u S K_u*
-     *                               = K_** - K_*u (K_uu^-1 - S) K_u*
-     *  which leads to:
-     *     C^-1 = K_uu^-1 - S
-     *                                                  (Expansion of S)
-     *          = K_uu^-1 - (K_uu + K_uf A^-1 K_fu)^-1
-     *                                        (Woodbury Matrix Identity)
-     *          = (K_uu^-1 K_uf (A + K_fu K_uu^-1 K_uf)^-1 K_fu K_uu^-1)
-     *                                   (LL^T = K_uu and P = L^-1 K_uf)
-     *          = L^-T P (A + P^T P)^-1 P^T L^-1
-     *                                        (Searle Set of Identities)
-     *          = L^-T P A^-1 P^T (I + P A^-1 P^T)^-1 L^-1
-     *                         (B = (I + P A^-1 P^T) and R = A^-1/2 P^T)
-     *          = L^-T R^T R B^-1 L^-1
-     *
-     *  taking the inverse of that then gives us:
-     *
-     *      C   = L B (R^T R)^-1 L^T
-     *
-     *  reusing some of the precomputed values there leads to:
-     *
-     *     v = L^-T B^-1 P * A^-1 y
-     */
+//    /*
+//     *
+//     * The end goal here is to produce a vector, v, and matrix, C, such that
+//     * for a prediction, f*, we can do,
+//     *
+//     *     [f*|f=y] ~ N(K_*u * v , K_** - K_*u * C^-1 * K_u*)
+//     *
+//     *  and it would match the desired prediction described above,
+//     *
+//     *     [f*|f=y] ~ N(K_*u S K_uf^-1 A^-1 y, K_** − Q_** + K_*u S K_u*)
+//     *
+//     *  we can find v easily,
+//     *
+//     *     v = S K_uf A^-1 y
+//     *
+//     *  and to get C we need to do some algebra,
+//     *
+//     *     K_** - K_*u * C^-1 * K_u* = K_** - Q_** + K_*u S K_u*
+//     *                               = K_** - K_*u (K_uu^-1 - S) K_u*
+//     *  which leads to:
+//     *     C^-1 = K_uu^-1 - S
+//     *                                                  (Expansion of S)
+//     *          = K_uu^-1 - (K_uu + K_uf A^-1 K_fu)^-1
+//     *                                        (Woodbury Matrix Identity)
+//     *          = (K_uu^-1 K_uf (A + K_fu K_uu^-1 K_uf)^-1 K_fu K_uu^-1)
+//     *                                   (LL^T = K_uu and P = L^-1 K_uf)
+//     *          = L^-T P (A + P^T P)^-1 P^T L^-1
+//     *                                        (Searle Set of Identities)
+//     *          = L^-T P A^-1 P^T (I + P A^-1 P^T)^-1 L^-1
+//     *                         (B = (I + P A^-1 P^T) and R = A^-1/2 P^T)
+//     *          = L^-T R^T R B^-1 L^-1
+//     *
+//     *  taking the inverse of that then gives us:
+//     *
+//     *      C   = L B (R^T R)^-1 L^T
+//     *
+//     *  reusing some of the precomputed values there leads to:
+//     *
+//     *     v = L^-T B^-1 P * A^-1 y
+//     */
+
+
     const auto A_llt = A.llt();
     Eigen::MatrixXd Pt = P.transpose();
     const auto A_sqrt = A_llt.matrixL();
@@ -233,11 +235,96 @@ public:
     v = B_ldlt.solve(v);
     v = K_uu_llt.matrixL().transpose().solve(v);
 
-    const Eigen::MatrixXd L_uu_inv =
-        K_uu_llt.matrixL().solve(Eigen::MatrixXd::Identity(m, m));
-    const Eigen::MatrixXd RtRBiLi = RtR * B_ldlt.solve(L_uu_inv);
-    const Eigen::MatrixXd LT = K_uu_llt.matrixL().transpose();
-    const Eigen::MatrixXd C = K_uu_llt.matrixL() * B * RtR.ldlt().solve(LT);
+    std::cout << "============== v.transpose() ==============" << std::endl;
+    std::cout << v << std::endl;
+
+//    const Eigen::MatrixXd L_uu_inv =
+//        K_uu_llt.matrixL().solve(Eigen::MatrixXd::Identity(m, m));
+//    const Eigen::MatrixXd RtRBiLi = RtR * B_ldlt.solve(L_uu_inv);
+//    const Eigen::MatrixXd LT = K_uu_llt.matrixL().transpose();
+//    const Eigen::MatrixXd C = K_uu_llt.matrixL() * B * RtR.ldlt().solve(LT);
+
+
+    Eigen::Index n = static_cast<Eigen::Index>(features.size());
+
+    Eigen::VectorXd b = Eigen::VectorXd::Zero(n + m);
+    b.topRows(n) = A_sqrt.llt().solve(targets.mean);
+    Eigen::MatrixXd H = Eigen::MatrixXd(n + m, m);
+
+    std::cout << "==========K_fu==========" << std::endl;
+    std::cout << K_fu << std::endl;
+
+    std::cout << "==========K_uu==========" << std::endl;
+    std::cout << K_uu << std::endl;
+
+    std::cout << "==========A==========" << std::endl;
+    for (const auto &block : A.blocks) {
+      std::cout << block << std::endl;
+    }
+
+    H.topRows(n) = A_sqrt.llt().solve(K_fu);
+    H.bottomRows(m) = K_uu_llt.matrixL().transpose();
+
+    std::cout << "==========H==========" << std::endl;
+    std::cout << H.rows() << ", " << H.cols() << std::endl;
+    std::cout << H << std::endl;
+
+    const auto HtH = (H.transpose() * H);
+
+    const auto rhs = H.topRows(n).transpose() * H.topRows(n);
+    std::cout << "=======Kuf A-1 K_fu=====" << std::endl;
+    std::cout << rhs << std::endl;
+
+    std::cout << "=======Kuf A-1 K_fu alt=====" << std::endl;
+    std::cout << K_fu.transpose() * A_llt.solve(K_fu) << std::endl;
+
+    std::cout << "=======HtH=====" << std::endl;
+    std::cout << HtH << std::endl;
+
+    Eigen::MatrixXd sigma_inv = A_llt.solve(K_fu);
+    sigma_inv = K_fu.transpose() * sigma_inv;
+    sigma_inv = K_uu + sigma_inv;
+    std::cout << "=======HtH alt======" << std::endl;
+    std::cout << sigma_inv << std::endl;
+
+    const auto lhs = H.bottomRows(m).transpose() * H.bottomRows(m);
+    std::cout << "=======Kuu alt=====" << std::endl;
+    std::cout << lhs << std::endl;
+
+    std::cout << "==========H solve==========" << std::endl;
+    std::cout << HtH.inverse() * (H.transpose() * b) << std::endl;
+
+    std::cout << "==========b " << std::endl;
+    std::cout << b << std::endl;
+
+    const auto QR = H.colPivHouseholderQr();
+    Eigen::VectorXd v_qr = QR.solve(b);
+
+    Eigen::Index rank = QR.rank();
+    const auto R = QR.matrixR().topLeftCorner(rank, rank).template triangularView<Eigen::Upper>();
+    const Eigen::MatrixXd Rmat = R;
+    Eigen::MatrixXd Q = QR.matrixQ();
+    std::cout << "n: " << n << " m: " << m << std::endl;
+    std::cout << "==========R==========" << std::endl;
+    std::cout << Rmat.rows() << ", " << Rmat.cols() << std::endl;
+    std::cout << Rmat << std::endl;
+    std::cout << "==========Q==========" << std::endl;
+    std::cout << Q.rows() << ", " << Q.cols() << std::endl;
+    std::cout << Q << std::endl;
+
+    const Eigen::MatrixXd Rinv = Rmat.ldlt().solve(Eigen::MatrixXd::Identity(QR.rank(), QR.rank()));
+    // CHANGE THIS!
+    std::cout << "8" << std::endl;
+    std::cout << "K_uu: " << K_uu.rows() << ", " << K_uu.cols() << std::endl;
+    const Eigen::MatrixXd sigma = Rinv.transpose() * Rinv;
+    std::cout << "9" << std::endl;
+    const auto C = (K_uu.inverse() - sigma).inverse();
+    std::cout << "10" << std::endl;
+
+    std::cout << "===============C" << std::endl;
+    std::cout << C << std::endl;
+    std::cout << "===============V" << std::endl;
+    std::cout << v_qr << std::endl;
 
     using InducingPointFeatureType = typename std::decay<decltype(u[0])>::type;
     return typename Base::template GPFitType<InducingPointFeatureType>(
