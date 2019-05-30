@@ -107,6 +107,17 @@ struct Fit<GaussianProcessBase<CovFunc, ImplType>, FeatureType> {
   }
 };
 
+inline Eigen::MatrixXd solve(const Eigen::SerializableLDLT &ldlt,
+                             const Eigen::MatrixXd &rhs) {
+  return ldlt.solve(rhs);
+}
+
+inline Eigen::MatrixXd
+solve(const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> &evd,
+      const Eigen::MatrixXd &rhs) {
+  return truncated_psd_solve(evd, rhs);
+}
+
 /*
  * Gaussian Process Helper Functions.
  */
@@ -115,29 +126,27 @@ inline Eigen::VectorXd gp_mean_prediction(const Eigen::MatrixXd &cross_cov,
   return cross_cov.transpose() * information;
 }
 
-inline MarginalDistribution
-gp_marginal_prediction(const Eigen::MatrixXd &cross_cov,
-                       const Eigen::VectorXd &prior_variance,
-                       const Eigen::VectorXd &information,
-                       const Eigen::SerializableLDLT &train_ldlt) {
+template <typename DecompositionType = Eigen::SerializableLDLT>
+inline MarginalDistribution gp_marginal_prediction(
+    const Eigen::MatrixXd &cross_cov, const Eigen::VectorXd &prior_variance,
+    const Eigen::VectorXd &information, const DecompositionType &train_decomp) {
   const Eigen::VectorXd pred = gp_mean_prediction(cross_cov, information);
   // Here we efficiently only compute the diagonal of the posterior
   // covariance matrix.
-  Eigen::MatrixXd explained = train_ldlt.solve(cross_cov);
+  Eigen::MatrixXd explained = solve(train_decomp, cross_cov);
   Eigen::VectorXd explained_variance =
       explained.cwiseProduct(cross_cov).array().colwise().sum();
   Eigen::VectorXd marginal_variance = prior_variance - explained_variance;
   return MarginalDistribution(pred, marginal_variance.asDiagonal());
 }
 
-inline JointDistribution
-gp_joint_prediction(const Eigen::MatrixXd &cross_cov,
-                    const Eigen::MatrixXd &prior_cov,
-                    const Eigen::VectorXd &information,
-                    const Eigen::SerializableLDLT &train_ldlt) {
+template <typename DecompositionType = Eigen::SerializableLDLT>
+inline JointDistribution gp_joint_prediction(
+    const Eigen::MatrixXd &cross_cov, const Eigen::MatrixXd &prior_cov,
+    const Eigen::VectorXd &information, const DecompositionType &train_decomp) {
   const Eigen::VectorXd pred = gp_mean_prediction(cross_cov, information);
   Eigen::MatrixXd explained_cov =
-      cross_cov.transpose() * train_ldlt.solve(cross_cov);
+      cross_cov.transpose() * solve(train_decomp, cross_cov);
   return JointDistribution(pred, prior_cov - explained_cov);
 }
 

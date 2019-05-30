@@ -107,4 +107,56 @@ TYPED_TEST(SparseGaussianProcessTest, test_scales) {
   EXPECT_LT(sparse_duration, 0.3 * direct_duration);
 }
 
+struct OverDeterminedInducingPoint {
+
+  OverDeterminedInducingPoint(){};
+
+  std::vector<int> operator()(const std::vector<int> &features) const {
+    std::vector<int> output = {-5, 5};
+    return output;
+  }
+};
+
+TEST(test_sparse_gp, test_overdetermined_example) {
+
+  Eigen::Index k = 3;
+  std::default_random_engine gen;
+  double sd = 0.1;
+  std::normal_distribution<double> normal(0., sd);
+
+  std::vector<int> train_features;
+  Eigen::VectorXd target_mean(k);
+  double expected = 3.14;
+  Eigen::VectorXd target_variance(k);
+
+  for (Eigen::Index i = 0; i < k; ++i) {
+    train_features.push_back(i);
+    target_mean[i] = expected + normal(gen);
+    target_variance[i] = sd * sd;
+  }
+
+  std::vector<int> test_features = {2, 3};
+  MarginalDistribution targets(target_mean, target_variance.asDiagonal());
+  RegressionDataset<int> dataset(train_features, targets);
+
+  Constant constant(10.);
+  const auto cov = constant;
+
+  OverDeterminedInducingPoint strategy;
+
+  LeaveOneOut loo;
+
+  const auto m = sparse_gp_from_covariance(cov, strategy, loo, "test");
+
+  const auto fit_model = m.fit(dataset);
+  const auto pred = fit_model.predict(test_features).joint();
+
+  for (Eigen::Index i = 0; i < pred.mean.size(); ++i) {
+    EXPECT_LT(fabs(pred.mean[i] - expected), 0.05);
+  }
+
+  // The covariance should be rank one since we've conditioned on to
+  // a single constant term.
+  EXPECT_EQ(pred.covariance.colPivHouseholderQr().rank(), 1);
+}
 } // namespace albatross
