@@ -44,6 +44,35 @@ struct UniformlySpacedInducingPoints {
   std::size_t num_points;
 };
 
+template <typename CovFunc, typename InducingPoint, typename Indexing, typename FeatureType>
+struct Fit<SparseGaussianProcessRegression<CovFunc, InducingPoint, Indexing>, FeatureType> {
+
+  std::vector<FeatureType> train_features;
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> train_evd;
+  Eigen::VectorXd information;
+
+  Fit(){};
+
+  Fit(const std::vector<FeatureType> &features_,
+      const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> &evd_, const Eigen::VectorXd &information_)
+      : train_features(features_), train_evd(evd_),
+        information(information_) {}
+
+  template <typename Archive> void serialize(Archive &archive) {
+    archive(cereal::make_nvp("information", information));
+//    archive(cereal::make_nvp("train_ldlt", train_ldlt));
+    archive(cereal::make_nvp("train_features", train_features));
+  }
+
+  template <typename OtherImplType>
+  bool operator==(const Fit<GaussianProcessBase<CovFunc, OtherImplType>,
+                            FeatureType> &other) const {
+    return (train_features == other.train_features &&
+            train_evd == other.train_evd && information == other.information);
+  }
+};
+
+
 /*
  *  This class implements an approximation technique for Gaussian processes
  * which relies on an assumption that all observations are independent (or
@@ -122,6 +151,37 @@ public:
   SparseGaussianProcessRegression(CovFunc &covariance_function,
                                   const std::string &model_name)
       : Base(covariance_function, model_name){};
+
+  template <typename FitFeatureType>
+  using SparseGPFitType = Fit<SparseGaussianProcessRegression<CovFunc,
+                                                              InducingPointStrategy,
+                                                              IndexingFunction>,
+                              FitFeatureType>;
+
+  template <
+      typename FeatureType, typename FitFeaturetype,
+      typename std::enable_if<
+          has_call_operator<CovFunc, FeatureType, FeatureType>::value &&
+              has_call_operator<CovFunc, FeatureType, FitFeaturetype>::value,
+          int>::type = 0>
+  JointDistribution
+  _predict_impl(const std::vector<FeatureType> &features,
+                const SparseGPFitType<FitFeaturetype> &sparse_gp_fit,
+                PredictTypeIdentity<JointDistribution> &&) const {
+
+    const auto cross_cov =
+        this->covariance_function_(sparse_gp_fit.train_features, features);
+    Eigen::MatrixXd prior_cov = this->covariance_function_(features);
+
+    const auto mean = cross_cov.transpose() * sparse_gp_fit.information;
+
+    Eigen::MatrixXd explained_cov =
+        cross_cov.transpose() * truncated_psd_solve(sparse_gp_fit.train_evd, cross_cov);
+    const auto cov = prior_cov - explained_cov;
+
+    return JointDistribution(mean, cov);
+  }
+
 
   template <typename FeatureType>
   auto _fit_impl(const std::vector<FeatureType> &out_of_order_features,
@@ -239,9 +299,10 @@ public:
     const Eigen::MatrixXd LT = K_uu_llt.matrixL().transpose();
     const Eigen::MatrixXd C = K_uu_llt.matrixL() * B * RtR.ldlt().solve(LT);
 
+    const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> evd(C);
+
     using InducingPointFeatureType = typename std::decay<decltype(u[0])>::type;
-    return typename Base::template GPFitType<InducingPointFeatureType>(
-        u, C.ldlt(), v);
+    return SparseGPFitType<InducingPointFeatureType>(u, evd, v);
   }
 
   InducingPointStrategy inducing_point_strategy;
