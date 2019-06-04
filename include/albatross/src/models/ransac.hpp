@@ -280,11 +280,34 @@ public:
     ;
   };
 
-  ParameterStore get_params() const override { return sub_model_.get_params(); }
+  ParameterStore get_params() const override {
+    auto params = sub_model_.get_params();
+    params["ransac_inlier_threshold"] = {
+        inlier_threshold_, std::make_shared<UninformativePrior>()};
+    params["ransac_random_sample_size"] = {
+        static_cast<double>(random_sample_size_),
+        std::make_shared<FixedPrior>()};
+    params["ransac_min_consensus_size"] = {
+        static_cast<double>(min_consensus_size_),
+        std::make_shared<FixedPrior>()};
+    params["ransac_max_iterations"] = {static_cast<double>(max_iterations_),
+                                       std::make_shared<FixedPrior>()};
+    return params;
+  }
 
   void unchecked_set_param(const std::string &name,
                            const Parameter &param) override {
-    sub_model_.set_param(name, param);
+    if (name == "ransac_inlier_threshold") {
+      inlier_threshold_ = param.value;
+    } else if (name == "ransac_random_sample_size") {
+      random_sample_size_ = lround(param.value);
+    } else if (name == "ransac_min_consensus_size") {
+      min_consensus_size_ = lround(param.value);
+    } else if (name == "ransac_max_iterations") {
+      max_iterations_ = lround(param.value);
+    } else {
+      sub_model_.set_param(name, param);
+    }
   }
 
   template <typename FeatureType>

@@ -14,6 +14,23 @@
 
 namespace albatross {
 
+template <typename ModelType>
+void test_get_set(ModelBase<ModelType> &model, const std::string &key) {
+  // Make sure a key exists, then modify it and make sure it
+  // takes on the new value.
+  const auto orig = model.get_param_value(key);
+  model.set_param(key, orig + 1.);
+  EXPECT_EQ(model.get_params().at(key), orig + 1.);
+}
+
+TYPED_TEST_P(RegressionModelTester, test_get_set_params) {
+  auto model = this->test_case.get_model();
+  auto params = model.get_params();
+  for (const auto &pair : params) {
+    test_get_set(model, pair.first);
+  }
+};
+
 TYPED_TEST_P(RegressionModelTester, test_performs_reasonably_on_linear_data) {
   auto dataset = this->test_case.get_dataset();
   auto model = this->test_case.get_model();
@@ -52,7 +69,8 @@ TYPED_TEST_P(RegressionModelTester, test_currect_derived_type) {
 
 REGISTER_TYPED_TEST_CASE_P(RegressionModelTester,
                            test_performs_reasonably_on_linear_data,
-                           test_predict_variants, test_currect_derived_type);
+                           test_predict_variants, test_currect_derived_type,
+                           test_get_set_params);
 
 INSTANTIATE_TYPED_TEST_CASE_P(test_models, RegressionModelTester,
                               ExampleModels);

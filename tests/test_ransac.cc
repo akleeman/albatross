@@ -18,6 +18,26 @@
 
 namespace albatross {
 
+TEST(test_outlier, test_ransac_params) {
+  const MakeGaussianProcess test_case;
+  auto dataset = test_case.get_dataset();
+  auto model = test_case.get_model();
+
+  DefaultGPRansacStrategy ransac_strategy;
+  double inlier_threshold = 1.;
+  std::size_t sample_size = 3;
+  std::size_t min_consensus_size = 3;
+  std::size_t max_iterations = 20;
+  const auto ransac_model =
+      model.ransac(ransac_strategy, inlier_threshold, sample_size,
+                   min_consensus_size, max_iterations);
+
+  const auto params = ransac_model.get_params();
+
+  std::string inlier_name = "ransac_inlier_threshold";
+  EXPECT_TRUE(map_contains(params, inlier_name));
+}
+
 TEST(test_outlier, test_ransac_direct) {
   const MakeGaussianProcess test_case;
   auto dataset = test_case.get_dataset();
