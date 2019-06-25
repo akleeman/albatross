@@ -255,4 +255,32 @@ TEST(test_models, test_model_from_prediction_low_rank) {
       model_pred.covariance, 1e-8));
 }
 
+TEST(test_models, test_model_from_different_datasets) {
+  Eigen::Index k = 10;
+  Eigen::VectorXd mean = 3.14159 * Eigen::VectorXd::Ones(k);
+  Eigen::VectorXd variance = 0.1 * Eigen::VectorXd::Ones(k);
+  MarginalDistribution targets(mean, variance.asDiagonal());
+
+  std::vector<double> train_features;
+  for (Eigen::Index i = 0; i < k; ++i) {
+    train_features.push_back(static_cast<double>(i) * 0.3);
+  }
+
+  ConstantEverywhere constant;
+  ConstantPerInterval per_interval;
+
+  auto model = gp_from_covariance(constant + per_interval, "unobservable");
+  const auto fit_model = model.fit(train_features, targets);
+
+  const auto inducing_points = create_inducing_points(train_features);
+  auto inducing_prediction = fit_model.predict(inducing_points).marginal();
+
+  RegressionDataset<double> dataset(train_features, targets);
+  RegressionDataset<InducingFeature> inducing_dataset(inducing_points, inducing_prediction);
+
+  const auto fit_again = model.fit(dataset, inducing_dataset);
+
+  const auto pred = fit_again.predict(inducing_points).joint();
+}
+
 } // namespace albatross
