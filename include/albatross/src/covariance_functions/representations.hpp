@@ -88,6 +88,14 @@ struct ExplainedCovariance {
             cereal::make_nvp("inner", inner));
   }
 
+  Eigen::Index rows() const {
+    return inner.rows();
+  }
+
+  Eigen::Index cols() const {
+    return inner.cols();
+  }
+
   Eigen::SerializableLDLT outer_ldlt;
   Eigen::MatrixXd inner;
 };
