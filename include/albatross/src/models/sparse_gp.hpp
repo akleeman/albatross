@@ -44,6 +44,39 @@ struct UniformlySpacedInducingPoints {
   std::size_t num_points;
 };
 
+struct SparseGPSolver {
+  SparseGPSolver(){};
+
+  SparseGPSolver(const Eigen::SerializableLDLT &A,
+                 const Eigen::SerializableLDLT &B) {
+    assert(A.rows() == B.rows());
+    assert(A.cols() == B.cols());
+    A_ = A;
+    B_ = B;
+  }
+
+  Eigen::MatrixXd solve(const Eigen::MatrixXd &rhs) const {
+    return A_.solve(rhs) - B_.solve(rhs);
+  }
+
+  bool operator==(const SparseGPSolver &rhs) const {
+    return (A_ == rhs.A_ && B_ == rhs.B_);
+  }
+
+  template <typename Archive>
+  void serialize(Archive &archive, const std::uint32_t) {
+    archive(cereal::make_nvp("A", A_),
+            cereal::make_nvp("B", B_));
+  }
+
+  Eigen::Index rows() const {
+    return A_.rows();
+  }
+
+  Eigen::SerializableLDLT A_;
+  Eigen::SerializableLDLT B_;
+};
+
 /*
  *  This class implements an approximation technique for Gaussian processes
  * which relies on an assumption that all observations are independent (or
@@ -102,7 +135,7 @@ class SparseGaussianProcessRegression
           CovFunc, SparseGaussianProcessRegression<
                        CovFunc, InducingPointStrategy, IndexingFunction>> {
 
-public:
+ public:
   using Base = GaussianProcessBase<
       CovFunc, SparseGaussianProcessRegression<CovFunc, InducingPointStrategy,
                                                IndexingFunction>>;
@@ -229,27 +262,68 @@ public:
      *     v = L^-T B^-1 P * A^-1 y
      */
     const auto A_llt = A.llt();
-    Eigen::MatrixXd Pt = P.transpose();
-    const auto A_sqrt = A_llt.matrixL();
-    Eigen::MatrixXd RtR = A_sqrt.llt().solve(Pt);
-    RtR = RtR.transpose() * RtR;
-    const Eigen::MatrixXd B = Eigen::MatrixXd::Identity(m, m) + RtR;
 
-    const auto B_ldlt = B.ldlt();
+    // S = (K_uu + K_uf A^-1 K_fu)^-1
 
-    Eigen::VectorXd v = P * A_llt.solve(targets.mean);
-    v = B_ldlt.solve(v);
-    v = K_uu_llt.matrixL().transpose().solve(v);
+    Eigen::MatrixXd S = K_uu + K_fu.transpose() * A.llt().solve(K_fu);
 
-    const Eigen::MatrixXd L_uu_inv =
-        K_uu_llt.matrixL().solve(Eigen::MatrixXd::Identity(m, m));
-    const Eigen::MatrixXd RtRBiLi = RtR * B_ldlt.solve(L_uu_inv);
-    const Eigen::MatrixXd LT = K_uu_llt.matrixL().transpose();
-    const Eigen::MatrixXd C = K_uu_llt.matrixL() * B * RtR.ldlt().solve(LT);
+//    const auto A_sqrt = A_llt.matrixL();
+//    Eigen::MatrixXd S_sqrt = A_sqrt.llt().solve(K_fu);
+//    Eigen::MatrixXd S = S_sqrt.transpose() * S_sqrt;
+//    S = K_uu + S;
+
+    std::cout << "S : " << S.eigenvalues().real().minCoeff() << std::endl;
+    std::cout << "K_uu : " <<K_uu.eigenvalues().real().minCoeff() << std::endl;
+
+    SparseGPSolver solver(K_uu.ldlt(), S.ldlt());
+
+//
+//    const Eigen::MatrixXd B = Eigen::MatrixXd::Identity(m, m) + RtR;
+//
+//    std::cout << "A : " << std::endl;
+//    for (const auto &b : A.blocks) {
+//      std::cout << "    : " << b.eigenvalues().real().minCoeff() << std::endl;
+//    }
+//    std::cout << "Kuu : " << K_uu.eigenvalues().real().minCoeff() << std::endl;
+//
+//
+//    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(K_uu);
+//
+//    const auto evals = es.eigenvalues();
+//    const auto evecs = es.eigenvectors();
+//
+//    for (Eigen::Index i = 0; i < evals.size(); ++i) {
+//      if (evals[i] < 1e-8) {
+//        std::cout << "===========" << std::endl;
+//        std::cout << evals[i] << std::endl;
+//        for (Eigen::Index j = 0; j < evecs.rows(); ++j) {
+//          if (abs(evecs(j, i)) > 1e-6) {
+//            std::cout << "    " << std::setw(15) << evecs(j, i) << "    " << u[j] << std::endl;
+//          }
+//        }
+//        std::cout << "===========" << std::endl;
+//      }
+//    }
+//    std::cout << "RtR : " << RtR.eigenvalues().real().minCoeff() << std::endl;
+//    std::cout << "B : " << B.eigenvalues().real().minCoeff() << std::endl;
+//
+//    const auto B_ldlt = B.ldlt();
+//
+//    Eigen::VectorXd v = P * A_llt.solve(targets.mean);
+//    v = B_ldlt.solve(v);
+//    v = K_uu_llt.matrixL().transpose().solve(v);
+//
+//    const Eigen::MatrixXd L_uu_inv =
+//        K_uu_llt.matrixL().solve(Eigen::MatrixXd::Identity(m, m));
+//    const Eigen::MatrixXd RtRBiLi = RtR * B_ldlt.solve(L_uu_inv);
+//    const Eigen::MatrixXd LT = K_uu_llt.matrixL().transpose();
+//    const Eigen::MatrixXd C = K_uu_llt.matrixL() * B * RtR.ldlt().solve(LT);
+
+    Eigen::VectorXd v = S.ldlt().solve(K_fu.transpose() * A_llt.solve(targets.mean));
 
     using InducingPointFeatureType = typename std::decay<decltype(u[0])>::type;
-    return typename Base::template CholeskyFit<InducingPointFeatureType>(
-        u, C.ldlt(), v);
+
+    return Fit<GPFit<SparseGPSolver, InducingPointFeatureType>>(u, solver, v);
   }
 
   InducingPointStrategy inducing_point_strategy;

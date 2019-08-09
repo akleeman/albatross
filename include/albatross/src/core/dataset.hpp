@@ -51,6 +51,9 @@ template <typename FeatureType> struct RegressionDataset {
 
   std::size_t size() const { return features.size(); }
 
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const RegressionDataset &ds);
+
   template <class Archive>
   typename std::enable_if<valid_in_out_serializer<FeatureType, Archive>::value,
                           void>::type
@@ -100,5 +103,15 @@ inline auto concatenate_datasets(const RegressionDataset<X> &x,
 }
 
 } // namespace albatross
+
+template <typename FeatureType>
+inline std::ostream &operator<<(std::ostream &os, const albatross::RegressionDataset<FeatureType> &dataset) {
+  for (Eigen::Index i = 0; i < dataset.targets.mean.size(); ++i) {
+    os << std::setw(15) << dataset.targets.mean[i] << "    ";
+    os << std::setw(15) << dataset.targets.get_diagonal(i) << "    ";
+    os << dataset.features[static_cast<std::size_t>(i)] << std::endl;
+  }
+  return os;
+}
 
 #endif
