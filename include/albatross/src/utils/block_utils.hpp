@@ -73,6 +73,70 @@ struct BlockDiagonal {
   Eigen::MatrixXd toDense() const;
 };
 
+template <typename Derived>
+inline
+Derived sqrt_solve(const Eigen::LDLT<Eigen::MatrixXd, Eigen::Lower> &A,
+    const Eigen::MatrixBase<Derived> &b) {
+
+  Derived output = A.transpositionsP() * b;
+
+  // output = L^-1 (P b)
+  A.matrixL().solveInPlace(output);
+
+  // dst = D^-1/2 (L^-1 P b)
+  using std::abs;
+  const auto vecD = A.vectorD();
+  double tolerance = 1. / Eigen::NumTraits<double>::highest();
+
+  for (Eigen::Index i = 0; i < vecD.size(); ++i) {
+    if(vecD(i) > tolerance) {
+      output.row(i) /= sqrt(vecD(i));
+    } else {
+      std::cout << "WARNING: INVALID DIAGONAL" << std::endl;
+      output.row(i).setZero();
+    }
+  }
+
+  return output;
+}
+
+template <typename Derived>
+inline
+Derived sqrt_solve_transpose(const Eigen::LDLT<Eigen::MatrixXd, Eigen::Lower> &A,
+    const Eigen::MatrixBase<Derived> &b) {
+
+  Derived output = b;
+
+  // output = D^-1/2 b
+  using std::abs;
+  const auto vecD = A.vectorD();
+  double tolerance = 1. / Eigen::NumTraits<double>::highest();
+  for (Eigen::Index i = 0; i < vecD.size(); ++i) {
+    if(vecD(i) > tolerance) {
+      output.row(i) /= sqrt(vecD(i));
+    } else {
+      std::cout << "WARNING: INVALID DIAGONAL" << std::endl;
+      output.row(i).setZero();
+    }
+  }
+
+  // output = L^-1 (D^-1/2 b)
+  A.matrixL().transpose().solveInPlace(output);
+
+  // output = P^T L^-1 (D^-1/2 b)
+  output = A.transpositionsP().transpose() * output;
+
+  return output;
+}
+
+inline
+Eigen::MatrixXd schur_complement(const Eigen::SerializableLDLT &A, const Eigen::MatrixXd &B, const Eigen::MatrixXd &C) {
+  const Eigen::MatrixXd A_sqrti_B = sqrt_solve(A, B);
+  const Eigen::MatrixXd explained = A_sqrti_B.transpose() * A_sqrti_B;
+  const Eigen::MatrixXd output = C - explained;
+  return output;
+}
+
 template <typename Solver> struct BlockSymmetric {
 
   /*
@@ -107,13 +171,13 @@ template <typename Solver> struct BlockSymmetric {
 
   BlockSymmetric(const Solver &A_, const Eigen::MatrixXd &B_,
                  const Eigen::SerializableLDLT &S_)
-      : A(A_), Ai_B(A_.solve(B_)), S(S_) {}
+      : A(A_), Li_B(sqrt_solve(A_, B_)), S(S_) {}
 
   BlockSymmetric(const Solver &A_, const Eigen::MatrixXd &B_,
                  const Eigen::MatrixXd &C)
       : BlockSymmetric(
             A_, B_,
-            Eigen::SerializableLDLT(C - B_.transpose() * A_.solve(B_))){};
+            Eigen::SerializableLDLT(schur_complement(A_, B_, C))){};
 
   template <class _Scalar, int _Rows, int _Cols>
   Eigen::Matrix<_Scalar, _Rows, _Cols>
@@ -129,7 +193,7 @@ template <typename Solver> struct BlockSymmetric {
   Eigen::Index cols() const;
 
   Solver A;
-  Eigen::MatrixXd Ai_B;
+  Eigen::MatrixXd Li_B;
   Eigen::SerializableLDLT S;
 };
 
@@ -328,41 +392,42 @@ inline Eigen::Index BlockDiagonal::cols() const {
  * BlockSymmetric
  *
  */
-
 template <typename Solver>
 template <class _Scalar, int _Rows, int _Cols>
 inline Eigen::Matrix<_Scalar, _Rows, _Cols> BlockSymmetric<Solver>::solve(
     const Eigen::Matrix<_Scalar, _Rows, _Cols> &rhs) const {
-  // https://en.wikipedia.org/wiki/Block_matrix#Block_matrix_inversion
   Eigen::Index n = A.rows() + S.rows();
   assert(rhs.rows() == n);
 
-  const Eigen::MatrixXd rhs_a = rhs.topRows(A.rows());
-  const Eigen::MatrixXd rhs_b = rhs.bottomRows(S.rows());
+  const Eigen::MatrixXd rhs_x = rhs.topRows(A.rows());
+  Eigen::MatrixXd rhs_y = rhs.bottomRows(S.rows());
 
-  const auto Bt_Ai_rhs = Ai_B.transpose() * rhs_a;
+  Eigen::MatrixXd x_hat = sqrt_solve(A, rhs_x);
+  rhs_y = rhs_y - Li_B.transpose() * x_hat;
+  const Eigen::MatrixXd y_hat = sqrt_solve(S, rhs_y);
 
-  const auto Si_Bt_Ai_rhs = S.solve(Bt_Ai_rhs);
-  const auto upper_left = A.solve(rhs_a) + Ai_B * Si_Bt_Ai_rhs;
+  const auto y = sqrt_solve_transpose(S, y_hat);
+
+  x_hat -= Li_B * y;
+  const auto x = sqrt_solve_transpose(A, x_hat);
 
   Eigen::Matrix<_Scalar, _Rows, _Cols> output(n, rhs.cols());
-  output.topRows(A.rows()) = upper_left - Ai_B * S.solve(rhs_b);
-  output.bottomRows(S.rows()) = S.solve(rhs_b) - Si_Bt_Ai_rhs;
-
+  output.topRows(A.rows()) = x;
+  output.bottomRows(S.rows()) = y;
   return output;
 }
 
 template <typename Solver>
 inline bool BlockSymmetric<Solver>::
 operator==(const BlockSymmetric &rhs) const {
-  return (A == rhs.A && Ai_B == rhs.Ai_B && S == rhs.S);
+  return (A == rhs.A && Li_B == rhs.Li_B && S == rhs.S);
 }
 
 template <typename Solver>
 template <typename Archive>
 inline void BlockSymmetric<Solver>::serialize(Archive &archive,
                                               const std::uint32_t) {
-  archive(cereal::make_nvp("A", A), cereal::make_nvp("Ai_B", Ai_B),
+  archive(cereal::make_nvp("A", A), cereal::make_nvp("Li_B", Li_B),
           cereal::make_nvp("S", S));
 }
 

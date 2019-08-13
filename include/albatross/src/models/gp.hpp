@@ -497,9 +497,11 @@ auto update(
 
   const Eigen::VectorXd Si_delta = S_ldlt.solve(delta);
 
+  const Eigen::VectorXd transformed = new_covariance.Li_B * Si_delta;
+
   Eigen::VectorXd new_information(new_covariance.rows());
   new_information.topRows(fit.train_covariance.rows()) =
-      fit.information - new_covariance.Ai_B * Si_delta;
+      fit.information - sqrt_solve_transpose(new_covariance.A, transformed);
   new_information.bottomRows(S_ldlt.rows()) = Si_delta;
 
   using NewFeatureType = typename decltype(new_features)::value_type;

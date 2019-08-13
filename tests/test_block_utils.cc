@@ -113,6 +113,19 @@ TEST(test_block_utils, test_matrix_l) {
             1e-6);
 }
 
+TEST(test_block_utils, test_sqrt_solve) {
+
+  const auto X = random_covariance_matrix(5);
+  const Eigen::MatrixXd rhs = Eigen::MatrixXd::Random(X.cols(), 3);
+
+  const Eigen::MatrixXd expected = X.llt().solve(rhs);
+
+  const Eigen::MatrixXd sqrt = sqrt_solve(X.ldlt(), rhs);
+  const Eigen::MatrixXd actual = sqrt_solve_transpose(X.ldlt(), sqrt);
+
+  EXPECT_LE((expected - actual).norm(), 1e-6);
+}
+
 TEST(test_block_utils, test_block_symmetric) {
 
   const auto X = random_covariance_matrix(5);
