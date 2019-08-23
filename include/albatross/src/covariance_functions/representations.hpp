@@ -78,6 +78,13 @@ struct ExplainedCovariance {
     return outer_ldlt.solve(inner * outer_ldlt.solve(rhs));
   }
 
+  /*
+   * Returns S^-1/2 rhs by computing B^1/2 A^-1 rhs
+   */
+  Eigen::MatrixXd sqrt_solve(const Eigen::MatrixXd &X) const {
+    return inner.llt().matrixL() * outer_ldlt.solve(X);
+  }
+
   bool operator==(const ExplainedCovariance &rhs) const {
     return (outer_ldlt == rhs.outer_ldlt && inner == rhs.inner);
   }
@@ -101,9 +108,6 @@ struct DirectInverse {
 
   DirectInverse(const Eigen::MatrixXd &inverse) : inverse_(inverse){};
 
-  /*
-   * Returns S^-1 rhs by using S^-1 = A^-1 B A^-1
-   */
   Eigen::MatrixXd solve(const Eigen::MatrixXd &rhs) const {
     return inverse_ * rhs;
   }

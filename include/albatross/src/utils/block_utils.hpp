@@ -15,6 +15,16 @@
 
 namespace albatross {
 
+inline
+void print_matrix_stats(const std::string &name, const Eigen::MatrixXd &x) {
+//  const Eigen::VectorXd evals = x.eigenvalues().real();
+//  double min = evals.minCoeff();
+//  double max = evals.maxCoeff();
+//  double cond = max / min;
+//  const Eigen::MatrixXd asymm = x - x.transpose();
+//  std::cout << name << "     min: " << min << " max: " << max << " cond: " << cond << " asym norm : " << asymm.norm() << " asym max : " << asymm.array().abs().maxCoeff() << std::endl;
+}
+
 template <typename MatrixType, unsigned int Mode = Eigen::Lower>
 struct BlockTriangularView;
 
@@ -75,6 +85,21 @@ struct BlockDiagonal {
 
 template <typename Derived>
 inline
+Derived sqrt_solve(const DirectInverse &A,
+    const Eigen::MatrixBase<Derived> &b) {
+  return A.inverse_.llt().matrixL() * b;
+}
+
+template <typename Derived>
+inline
+Derived sqrt_solve_transpose(const DirectInverse &A,
+    const Eigen::MatrixBase<Derived> &b) {
+  return A.inverse_.llt().matrixL().transpose() * b;
+}
+
+
+template <typename Derived>
+inline
 Derived sqrt_solve(const Eigen::LDLT<Eigen::MatrixXd, Eigen::Lower> &A,
     const Eigen::MatrixBase<Derived> &b) {
 
@@ -89,10 +114,10 @@ Derived sqrt_solve(const Eigen::LDLT<Eigen::MatrixXd, Eigen::Lower> &A,
   double tolerance = 1. / Eigen::NumTraits<double>::highest();
 
   for (Eigen::Index i = 0; i < vecD.size(); ++i) {
-    if(vecD(i) > tolerance) {
-      output.row(i) /= sqrt(vecD(i));
+    if(fabs(vecD(i)) > tolerance) {
+      output.row(i) /= sqrt(fabs(vecD(i)));
     } else {
-      std::cout << "WARNING: INVALID DIAGONAL" << std::endl;
+//      std::cout << "WARNING: INVALID DIAGONAL : " << vecD(i) << std::endl;
       output.row(i).setZero();
     }
   }
@@ -112,10 +137,10 @@ Derived sqrt_solve_transpose(const Eigen::LDLT<Eigen::MatrixXd, Eigen::Lower> &A
   const auto vecD = A.vectorD();
   double tolerance = 1. / Eigen::NumTraits<double>::highest();
   for (Eigen::Index i = 0; i < vecD.size(); ++i) {
-    if(vecD(i) > tolerance) {
-      output.row(i) /= sqrt(vecD(i));
+    if(fabs(vecD(i)) > tolerance) {
+      output.row(i) /= sqrt(fabs(vecD(i)));
     } else {
-      std::cout << "WARNING: INVALID DIAGONAL" << std::endl;
+//      std::cout << "WARNING: INVALID DIAGONAL : " << vecD(i) << std::endl;
       output.row(i).setZero();
     }
   }
@@ -171,7 +196,7 @@ template <typename Solver> struct BlockSymmetric {
 
   BlockSymmetric(const Solver &A_, const Eigen::MatrixXd &B_,
                  const Eigen::SerializableLDLT &S_)
-      : A(A_), Li_B(sqrt_solve(A_, B_)), S(S_) {}
+      : A(A_), Li_B(albatross::sqrt_solve(A_, B_)), S(S_) {}
 
   BlockSymmetric(const Solver &A_, const Eigen::MatrixXd &B_,
                  const Eigen::MatrixXd &C)
@@ -182,6 +207,10 @@ template <typename Solver> struct BlockSymmetric {
   template <class _Scalar, int _Rows, int _Cols>
   Eigen::Matrix<_Scalar, _Rows, _Cols>
   solve(const Eigen::Matrix<_Scalar, _Rows, _Cols> &rhs) const;
+
+  template <class _Scalar, int _Rows, int _Cols>
+  Eigen::Matrix<_Scalar, _Rows, _Cols>
+  sqrt_solve(const Eigen::Matrix<_Scalar, _Rows, _Cols> &rhs) const;
 
   bool operator==(const BlockSymmetric &rhs) const;
 
@@ -402,9 +431,9 @@ inline Eigen::Matrix<_Scalar, _Rows, _Cols> BlockSymmetric<Solver>::solve(
   const Eigen::MatrixXd rhs_x = rhs.topRows(A.rows());
   Eigen::MatrixXd rhs_y = rhs.bottomRows(S.rows());
 
-  Eigen::MatrixXd x_hat = sqrt_solve(A, rhs_x);
+  Eigen::MatrixXd x_hat = albatross::sqrt_solve(A, rhs_x);
   rhs_y = rhs_y - Li_B.transpose() * x_hat;
-  const Eigen::MatrixXd y_hat = sqrt_solve(S, rhs_y);
+  const Eigen::MatrixXd y_hat = albatross::sqrt_solve(S, rhs_y);
 
   const auto y = sqrt_solve_transpose(S, y_hat);
 
@@ -414,6 +443,26 @@ inline Eigen::Matrix<_Scalar, _Rows, _Cols> BlockSymmetric<Solver>::solve(
   Eigen::Matrix<_Scalar, _Rows, _Cols> output(n, rhs.cols());
   output.topRows(A.rows()) = x;
   output.bottomRows(S.rows()) = y;
+  return output;
+}
+
+template <typename Solver>
+template <class _Scalar, int _Rows, int _Cols>
+inline Eigen::Matrix<_Scalar, _Rows, _Cols> BlockSymmetric<Solver>::sqrt_solve(
+    const Eigen::Matrix<_Scalar, _Rows, _Cols> &rhs) const {
+  Eigen::Index n = A.rows() + S.rows();
+  assert(rhs.rows() == n);
+
+  const Eigen::MatrixXd rhs_x = rhs.topRows(A.rows());
+  Eigen::MatrixXd rhs_y = rhs.bottomRows(S.rows());
+
+  Eigen::MatrixXd x_hat = albatross::sqrt_solve(A, rhs_x);
+  rhs_y = rhs_y - Li_B.transpose() * x_hat;
+  const Eigen::MatrixXd y_hat = albatross::sqrt_solve(S, rhs_y);
+
+  Eigen::Matrix<_Scalar, _Rows, _Cols> output(n, rhs.cols());
+  output.topRows(A.rows()) = x_hat;
+  output.bottomRows(S.rows()) = y_hat;
   return output;
 }
 

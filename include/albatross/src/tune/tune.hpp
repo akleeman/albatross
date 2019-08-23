@@ -44,6 +44,7 @@ inline std::string to_string(const nlopt::result result) {
 template <typename ModelType, typename MetricType, typename FeatureType>
 double objective_function(const std::vector<double> &x,
                           std::vector<double> &grad, void *void_tune_config) {
+
   if (!grad.empty()) {
     throw std::invalid_argument("The algorithm being used by nlopt requires"
                                 "a gradient but one isn't available.");
@@ -104,9 +105,14 @@ struct ModelTuner {
     auto x = model.get_tunable_parameters().values;
 
     assert(x.size());
+
+    std::cout << "set min objective" << std::endl;
     optimizer.set_min_objective(
         objective_function<ModelType, MetricType, FeatureType>, (void *)this);
     double minf;
+
+    const auto lower = optimizer.get_lower_bounds();
+    const auto upper = optimizer.get_upper_bounds();
     nlopt::result result = optimizer.optimize(x, minf);
 
     // Tell the user what the final parameters were.
@@ -127,6 +133,7 @@ struct ModelTuner {
     // In this case LN stands for local, gradient free.
     auto tunable_params = model.get_tunable_parameters();
 
+    std::cout << "initialize_optimizer" << std::endl;
     optimizer = nlopt::opt(algorithm, (unsigned)tunable_params.values.size());
     optimizer.set_ftol_abs(1e-8);
     optimizer.set_ftol_rel(1e-6);

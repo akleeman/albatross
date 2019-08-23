@@ -275,6 +275,9 @@ public:
     RtR = RtR.transpose() * RtR;
     const Eigen::MatrixXd B = Eigen::MatrixXd::Identity(m, m) + RtR;
 
+//    print_matrix_stats("RtR", RtR);
+//    print_matrix_stats("B", B);
+
     const auto B_ldlt = B.ldlt();
     const Eigen::MatrixXd L_uu_inv =
         K_uu_llt.matrixL().solve(Eigen::MatrixXd::Identity(m, m));

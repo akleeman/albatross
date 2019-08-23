@@ -111,7 +111,31 @@ gp_marginal_prediction(const Eigen::MatrixXd &cross_cov,
   return MarginalDistribution(pred, marginal_variance.asDiagonal());
 }
 
+//template <typename CovarianceRepresentation,
+//          typename std::enable_if<has_sqrt_solve<CovarianceRepresentation, Eigen::MatrixXd>::value, int>::type = 0>
+//inline JointDistribution
+//gp_joint_prediction(const Eigen::MatrixXd &cross_cov,
+//                    const Eigen::MatrixXd &prior_cov,
+//                    const Eigen::VectorXd &information,
+//                    const CovarianceRepresentation &train_covariance) {
+//  const Eigen::VectorXd pred = gp_mean_prediction(cross_cov, information);
+//
+//  Eigen::MatrixXd explained_cov = train_covariance.sqrt_solve(cross_cov);
+//  explained_cov = explained_cov.transpose() * explained_cov;
+//
+//  if (explained_cov.rows() > 69) {
+//    std::cout << "SQRT SOLVE" << std::endl;
+//    std::vector<std::size_t> inds = {56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69};
+//    std::cout << typeid(train_covariance).name() << std::endl;
+//    std::cout << "==============explained==============" << std::endl;
+//    std::cout << symmetric_subset(explained_cov, inds) << std::endl;
+//  }
+//
+//  return JointDistribution(pred, prior_cov - explained_cov);
+//}
+
 template <typename CovarianceRepresentation>
+//          typename std::enable_if<!has_sqrt_solve<CovarianceRepresentation, Eigen::MatrixXd>::value, int>::type = 0>
 inline JointDistribution
 gp_joint_prediction(const Eigen::MatrixXd &cross_cov,
                     const Eigen::MatrixXd &prior_cov,
@@ -120,6 +144,11 @@ gp_joint_prediction(const Eigen::MatrixXd &cross_cov,
   const Eigen::VectorXd pred = gp_mean_prediction(cross_cov, information);
   Eigen::MatrixXd explained_cov =
       cross_cov.transpose() * train_covariance.solve(cross_cov);
+
+//  std::cout << "==============explained==============" << std::endl;
+//  std::cout << typeid(train_covariance).name() << std::endl;
+//  std::cout << explained_cov.topLeftCorner(5, 5) << std::endl;
+
   return JointDistribution(pred, prior_cov - explained_cov);
 }
 
@@ -471,6 +500,18 @@ struct GaussianProcessLikelihood {
   }
 };
 
+template <typename FeatureType,
+          typename std::enable_if<!is_variant<FeatureType>::value, int>::type = 0>
+void to_stdout(const FeatureType &f) {
+  std::cout << f;
+};
+
+template <typename FeatureType,
+          typename std::enable_if<is_variant<FeatureType>::value, int>::type = 0>
+void to_stdout(const FeatureType &f) {
+  f.match([](const auto &x) {to_stdout(x);});
+};
+
 template <typename ModelType, typename Solver, typename FeatureType,
           typename UpdateFeatureType>
 auto update(
@@ -486,26 +527,64 @@ auto update(
   if (dataset.targets.has_covariance()) {
     pred.covariance += dataset.targets.covariance;
   }
+
+  std::cout << "----------UPDATE----------" << std::endl;
+  print_matrix_stats("pred", pred.covariance);
+
   const auto S_ldlt = pred.covariance.ldlt();
 
   const auto model = fit_model.get_model();
   const Eigen::MatrixXd cross =
       model.get_covariance()(fit.train_features, dataset.features);
 
+  std::cout << "min(D) : " << S_ldlt.vectorD().minCoeff() << std::endl;
   const auto new_covariance =
       build_block_symmetric(fit.train_covariance, cross, S_ldlt);
 
   const Eigen::VectorXd Si_delta = S_ldlt.solve(delta);
 
   const Eigen::VectorXd transformed = new_covariance.Li_B * Si_delta;
+  const Eigen::VectorXd explained = sqrt_solve_transpose(new_covariance.A, transformed);
 
   Eigen::VectorXd new_information(new_covariance.rows());
-  new_information.topRows(fit.train_covariance.rows()) =
-      fit.information - sqrt_solve_transpose(new_covariance.A, transformed);
+  new_information.topRows(fit.train_covariance.rows()) = fit.information - explained;
   new_information.bottomRows(S_ldlt.rows()) = Si_delta;
 
   using NewFeatureType = typename decltype(new_features)::value_type;
   using NewFitType = Fit<GPFit<BlockSymmetric<Solver>, NewFeatureType>>;
+
+//  const Eigen::MatrixXd prior = model.get_covariance()(fit.train_features);
+//
+////  const auto self_pred = gp_joint_prediction(self_cross, prior, new_information, new_covariance);
+//  std::vector<std::size_t> inds = {56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69};
+//
+//  std::cout << "=================prior========================" << std::endl;
+////  const auto train_pred_cross = model.get_covariance()(fit.train_features, )
+//  const auto self_explained = prior.transpose() * fit.train_covariance.solve(prior);
+//  std::cout << symmetric_subset(prior, inds) << std::endl;
+//
+//  Eigen::Index m = fit.train_covariance.rows();
+//  Eigen::Index k = pred.covariance.rows();
+//  Eigen::Index n = m + k;
+//  Eigen::MatrixXd full_cov(n, n);
+//  full_cov.topLeftCorner(m, m) = fit.train_covariance.reconstructedMatrix();
+//  full_cov.topRightCorner(m, k) = cross;
+//  full_cov.bottomLeftCorner(k, m) = cross.transpose();
+//  full_cov.bottomRightCorner(k, k) = model.get_covariance()(dataset.features);
+//
+//  const auto full_cross = model.get_covariance()(new_features, dataset.features);
+//
+//  const Eigen::MatrixXd full_explained = full_cross.transpose() * full_cov.ldlt().solve(full_cross);
+//  std::cout << "============full expalined===================" << std::endl;
+//  std::cout << symmetric_subset(full_explained, inds) << std::endl;
+//  std::cout << "============self expalined===================" << std::endl;
+//  std::cout << symmetric_subset(self_explained, inds) << std::endl;
+//
+//  for (std::size_t i = 0; i < prior.rows(); ++i) {
+//    std::cout << std::setw(20) << prior(i, 56) << "    ";
+//    to_stdout(new_features[i]);
+//    std::cout << std::endl;
+//  }
 
   return FitModel<ModelType, NewFitType>(
       model, NewFitType(new_features, new_covariance, new_information));

@@ -232,6 +232,8 @@ public:
   static constexpr bool value = decltype(test<T>(0))::value;
 };
 
+HAS_METHOD(sqrt_solve);
+
 } // namespace albatross
 
 #endif
