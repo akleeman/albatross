@@ -31,6 +31,18 @@ inline std::vector<double> linspace(double a, double b, std::size_t n) {
   return xs;
 }
 
+inline bool all(const std::vector<bool> &xs) {
+  if (xs.size() == 0) {
+    return false;
+  }
+  for (const auto &x : xs) {
+    if (!x) {
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace albatross
 
 #endif /* ALBATROSS_UTILS_VECTOR_UTILS_HPP_ */
