@@ -16,10 +16,10 @@
 namespace albatross {
 
 struct Foo {
-  Foo() : value() {};
-  Foo(const double &x) : value(x) {};
+  Foo() : value(){};
+  Foo(const double &x) : value(x){};
 
-  bool operator ==(const Foo &other) const {
+  bool operator==(const Foo &other) const {
     return fabs(other.value - value) < std::numeric_limits<double>::epsilon();
   }
 
@@ -30,9 +30,7 @@ TEST(test_apply, test_vector_apply) {
 
   const auto xs = linspace(0., 10., 11);
 
-  const auto make_foo = [](const double &x) {
-    return Foo(x);
-  };
+  const auto make_foo = [](const double &x) { return Foo(x); };
 
   const auto applied = apply(xs, make_foo);
 
@@ -42,7 +40,6 @@ TEST(test_apply, test_vector_apply) {
   }
 
   EXPECT_EQ(expected, applied);
-
 }
 
 TEST(test_apply, test_vector_apply_void) {
@@ -51,9 +48,7 @@ TEST(test_apply, test_vector_apply_void) {
 
   std::size_t call_count = 0;
 
-  const auto count_calls = [&](const double &x) {
-    ++call_count;
-  };
+  const auto count_calls = [&](const double &x) { ++call_count; };
 
   apply(xs, count_calls);
 
@@ -98,4 +93,4 @@ TEST(test_apply, test_vector_apply_all) {
   EXPECT_EQ(actual, expected);
 }
 
-}
+} // namespace albatross
