@@ -126,6 +126,16 @@ void maybe_create_training_data(const std::string &input_path, const int n,
     std::cout << "creating training data and writing it to : " << input_path
               << std::endl;
     auto data = create_train_data(n, low, high, meas_noise);
+
+    std::vector<std::size_t> inds;
+    for (std::size_t i = 0; i < data.features.size(); ++i) {
+      if (data.features[i] <= 3.5 || data.features[i] >= 6.5) {
+        inds.push_back(i);
+      }
+    }
+    data = subset(data, inds);
+
+
     {
       std::ofstream train_file(input_path);
       albatross::write_to_csv(train_file, data);
