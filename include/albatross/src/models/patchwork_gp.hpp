@@ -15,6 +15,104 @@
 
 namespace albatross {
 
+
+template <typename GroupKey>
+inline
+Eigen::MatrixXd outer_product(const Grouped<GroupKey, Eigen::MatrixXd> &lhs,
+    const Grouped<GroupKey, Eigen::MatrixXd> &rhs) {
+  assert(lhs.size() == rhs.size());
+  const Eigen::Index rows = lhs.first_value().cols();
+  const Eigen::Index cols = rhs.first_value().cols();
+  auto has_expected_cols = [](const auto &x) { return x.cols() == cols;};
+  assert(rhs.apply(has_expected_cols).all());
+
+
+
+}
+
+
+template <typename GroupKey, typename FeatureType>
+struct BoundaryFeature {
+
+  BoundaryFeature(const GroupKey &lhs_, const GroupKey &rhs_, const FeatureType &feature_) :
+    lhs(lhs_), rhs(rhs_), feature(feature_) {};
+
+  GroupKey lhs;
+  GroupKey rhs;
+  FeatureType feature;
+};
+
+template <typename CovFuncCaller, typename GroupKey, typename X, typename Y>
+inline Eigen::MatrixXd compute_covariance_matrix(CovFuncCaller caller,
+                                                 const GroupKey &key,
+                                                 const std::vector<X> &xs,
+                                                 const std::vector<BoundaryFeature<GroupKey, Y>> &ys) {
+  static_assert(is_invocable<CovFuncCaller, X, Y>::value,
+                "caller does not support the required arguments");
+  static_assert(is_invocable_with_result<CovFuncCaller, double, X, Y>::value,
+                "caller does not return a double");
+  int m = static_cast<int>(xs.size());
+  int n = static_cast<int>(ys.size());
+  Eigen::MatrixXd C(m, n);
+
+  int i, j;
+  std::size_t si, sj;
+  for (i = 0; i < m; i++) {
+    si = static_cast<std::size_t>(i);
+    for (j = 0; j < n; j++) {
+      sj = static_cast<std::size_t>(j);
+      if (key == ys[sj].lhs) {
+        C(i, j) = caller(xs[si], ys[sj].feature);
+      } else if (key == ys[sj].rhs) {
+        C(i, j) = -caller(xs[si], ys[sj].feature);
+      } else {
+        C(i, j) = 0.;
+      }
+    }
+  }
+  return C;
+}
+
+template <typename CovFuncCaller, typename X, typename GroupKey>
+inline Eigen::MatrixXd compute_boundary_covariance_matrix(CovFuncCaller caller,
+                                                 const std::vector<BoundaryFeature<GroupKey, X>> &xs,
+                                                 const std::vector<BoundaryFeature<GroupKey, X>> &ys) {
+  static_assert(is_invocable<CovFuncCaller, X, X>::value,
+                "caller does not support the required arguments");
+  static_assert(is_invocable_with_result<CovFuncCaller, double, X, X>::value,
+                "caller does not return a double");
+  int m = static_cast<int>(xs.size());
+  int n = static_cast<int>(ys.size());
+  Eigen::MatrixXd C(m, n);
+
+  Eigen::Index i, j;
+  std::size_t si, sj;
+  for (i = 0; i < m; i++) {
+    si = static_cast<std::size_t>(i);
+    for (j = 0; j < n; j++) {
+      sj = static_cast<std::size_t>(j);
+      if (xs[si].lhs == ys[sj].lhs && xs[si].rhs == ys[sj].rhs) {
+        C(i, j) = 2 * caller(xs[si].feature, ys[sj].feature);
+      } else if (xs[si].lhs == ys[sj].lhs && xs[si].rhs != ys[sj].rhs) {
+        C(i, j) = caller(xs[si].feature, ys[sj].feature);
+      } else if (xs[si].lhs != ys[sj].lhs && xs[si].rhs == ys[sj].rhs) {
+        C(i, j) = caller(xs[si].feature, ys[sj].feature);
+      } else if (xs[si].lhs == ys[sj].rhs && xs[si].rhs != ys[sj].lhs) {
+        C(i, j) = -caller(xs[si].feature, ys[sj].feature);
+      } else if (xs[si].lhs != ys[sj].rhs && xs[si].rhs == ys[sj].lhs) {
+        C(i, j) = -caller(xs[si].feature, ys[sj].feature);
+      } else {
+        assert(xs[si].lhs != ys[sj].lhs &&
+            xs[si].lhs != ys[sj].rhs &&
+            xs[si].rhs != ys[sj].lhs &&
+            xs[si].rhs != ys[sj].rhs);
+        C(i, j) = 0.;
+      }
+    }
+  }
+  return C;
+}
+
 template <typename FitModelType, typename GrouperFunction>
 struct PatchworkGPFit {};
 
@@ -41,7 +139,22 @@ struct Fit<PatchworkGPFit<FitModel<ModelType, FitType>, GrouperFunction>> {
           grouper_function(grouper_function_) {};
 
   Grouped<GroupKey, FitModel<ModelType, FitType>> fit_models;
+//  Eigen::MatrixXd C_bb_inv_C_bd;
+//  Grouped<GroupKey, Eigen::VectorXd> information;
   GrouperFunction grouper_function;
+};
+
+template <typename X, typename Y>
+inline
+auto block_solve(const X &lhs, const Y &rhs) {
+
+  const auto solve_one_block = [&](const auto &key, const auto &x) {
+    const Eigen::MatrixXd output = lhs.at(key).solve(x);
+    std::cout << key << " : " << output.rows() << ", " << output.cols() << std::endl;
+    return output;
+  };
+
+  return rhs.apply(solve_one_block);
 };
 
 template <typename CovFunc, typename GrouperFunction,
@@ -77,102 +190,183 @@ public:
       const Fit<PatchworkGPFit<FitModelType, GrouperFunction>> &patchwork_fit,
       PredictTypeIdentity<JointDistribution> &&) const {
 
+    std::cout << "0" << std::endl;
+    using GroupKey = typename Fit<PatchworkGPFit<FitModelType, GrouperFunction>>::GroupKey;
+    const auto fit_models = patchwork_fit.fit_models;
+
+    std::cout << "1" << std::endl;
     auto get_obs_vector = [](const auto &fit_model) {
       return fit_model.predict(fit_model.get_fit().train_features).mean();
     };
 
-    assert(patchwork_fit.fit_models.size() == 2);
+    const auto obs_vectors = patchwork_fit.fit_models.apply(get_obs_vector);
 
-    const auto obs_vectors = patchwork_fit.fit_models.apply(get_obs_vector).values();
-    const auto y = concatenate(obs_vectors[0], obs_vectors[1]);
-
+    std::cout << "2" << std::endl;
     auto get_features = [](const auto &fit_model) {
       return fit_model.get_fit().train_features;
     };
 
-    auto C_dd_solve = [&](const Eigen::MatrixXd &x) {
-      Eigen::Index i = 0;
-      Eigen::MatrixXd output(x.rows(), x.cols());
-      for (const auto &f : patchwork_fit.fit_models.values()) {
-        const auto cov = f.get_fit().train_covariance;
-        const auto rhs_chunk = x.block(i, 0, cov.rows(), x.cols());
-        output.block(i, 0, cov.rows(), x.cols()) = cov.solve(rhs_chunk);
-        i += cov.rows();
-      }
-      return output;
+    auto get_train_covariance = [](const auto &fit_model) {
+      return fit_model.get_fit().train_covariance;
     };
 
-    auto cov_func_fb = [&](const auto &features, const auto &b_features) {
-      Eigen::MatrixXd output = this->covariance_function_(features, b_features);
+    std::cout << "3" << std::endl;
+    const auto C_dd = fit_models.apply(get_train_covariance);
 
-      for (Eigen::Index i = 0; i < output.rows(); ++i) {
-        for (Eigen::Index j = 0; j < output.cols(); ++j) {
-          if (!grouper_function_(features[i])) {
-            output(i, j) = -output(i, j);
-          }
+    const auto groups = fit_models.keys();
+    using BoundarySubFeatureType = typename decltype(boundary_function_(std::declval<GroupKey>(), std::declval<GroupKey>()))::value_type;
+    using BoundaryFeatureType = BoundaryFeature<GroupKey, BoundarySubFeatureType>;
+    std::vector<BoundaryFeatureType> boundary_features;
+    for (std::size_t i = 0; i < groups.size(); ++i) {
+      for (std::size_t j = i + 1; j < groups.size(); ++j) {
+        const auto boundary = boundary_function_(groups[i], groups[j]);
+        for (const auto &b : boundary) {
+          boundary_features.emplace_back(groups[i], groups[j], b);
         }
       }
+    }
 
-      return output;
+    std::cout << "4" << std::endl;
+    const Eigen::MatrixXd C_bb = compute_boundary_covariance_matrix(this->covariance_function_,
+        boundary_features, boundary_features);
+
+    std::cout << "5" << std::endl;
+    auto boundary_cov_func = [&](const auto &key, const auto &fit_model) {
+      return compute_covariance_matrix(this->covariance_function_, key, get_features(fit_model),
+          boundary_features);
     };
 
-    const auto both_features = patchwork_fit.fit_models.apply(get_features).values();
-    const auto train_features = concatenate(both_features[0], both_features[1]);
+    const auto C_db = fit_models.apply(boundary_cov_func);
+    std::cout << "6" << std::endl;
 
-    const auto groups = patchwork_fit.fit_models.keys();
-    const auto boundary = boundary_function_(groups[0], groups[1]);
+    const auto C_dd_inv_C_db = block_solve(C_dd, C_db);
+    std::cout << "7" << std::endl;
+    // After the subsequent steps this'll be:
+    //    S_bb = C_bb - C_db * C_dd^-1 * C_db
+    Eigen::MatrixXd S_bb = C_bb;
+    auto subtract_off_outer_product = [&](const auto &key, const auto &rhs) {
+      S_bb -= C_db.at(key).transpose() * rhs;
+    };
+    C_dd_inv_C_db.apply(subtract_off_outer_product);
 
-    const Eigen::MatrixXd C_bb = 2. * this->covariance_function_(boundary);
-    auto C_db = cov_func_fb(train_features, boundary);
-
-    const Eigen::MatrixXd C_dd_inv_C_db = C_dd_solve(C_db);
-
-    std::cout << C_bb.rows() << " " << C_bb.cols() << std::endl;
-    std::cout << C_db.rows() << " " << C_db.cols() << std::endl;
-    std::cout << C_dd_inv_C_db.rows() << " " << C_dd_inv_C_db.cols() << std::endl;
-
-    const Eigen::MatrixXd S_bb = C_bb - C_db.transpose() * C_dd_inv_C_db;
+    std::cout << "8" << std::endl;
     const auto S_bb_ldlt = S_bb.ldlt();
-    auto solver = [&](const auto &x) {
-      Eigen::MatrixXd output = C_dd_inv_C_db.transpose() * x;
-      output = S_bb_ldlt.solve(output);
-      output = C_dd_inv_C_db * output;
-      output += C_dd_solve(x);
-      return output;
+
+    auto solver = [&](const auto &rhs) {
+      // A^-1 rhs + A^-1 C (B - C^T A^-1 C)^-1 C^T A^-1 rhs
+      // A^-1 rhs + A^-1 C S^-1 C^T A^-1 rhs
+
+      // A = C_dd
+      // B = C_bb
+      // C = C_db
+      // S_bb = (B - C^T A^-1 C)
+      const auto Ai_rhs = block_solve(C_dd, rhs);
+
+      const auto cols = rhs.first_group().second.cols();
+
+      Eigen::MatrixXd SiCtAi_rhs = Eigen::MatrixXd::Zero(C_bb.rows(), cols);
+      auto accumulate_SiCtAi = [&](const auto &key, const auto &x) {
+        SiCtAi_rhs += S_bb_ldlt.solve(C_db.at(key).transpose() * x);
+      };
+      Ai_rhs.apply(accumulate_SiCtAi);
+
+      std::cout << "SiCtAi_rhs : " << SiCtAi_rhs.rows() << ", " << SiCtAi_rhs.cols() << std::endl;
+
+      auto product_with_SiCtAi_rhs = [&](const auto &key, const auto &C_db_i) {
+        Eigen::MatrixXd output = C_db_i * SiCtAi_rhs;
+        std::cout << "produce: " << key << " " << output.rows() << ", " << output.cols() << std::endl;
+        return output;
+      };
+      const auto C_db_SiCtAi_rhs = C_db.apply(product_with_SiCtAi_rhs);
+
+      auto output = block_solve(C_dd, C_db_SiCtAi_rhs);
+      // Adds A^-1 rhs to A^-1 C S^-1 C^T A^-1 rhs
+      auto add_Ai_rhs = [&](const auto &key, const auto &group) {
+        Eigen::MatrixXd output = group + Ai_rhs.at(key);
+        return output;
+      };
+      return output.apply(add_Ai_rhs);
     };
 
-    const Eigen::VectorXd new_information = solver(y);
+    const auto ys = fit_models.apply(get_obs_vector);
+    std::cout << "9" << std::endl;
+    const auto information = solver(ys);
+    std::cout << "10" << std::endl;
 
-    const Eigen::MatrixXd C_bb_inv_C_bd = C_bb.ldlt().solve(C_db.transpose());
+    Eigen::VectorXd C_bb_inv_C_bd_information = Eigen::VectorXd::Zero(C_bb.rows());
+    const auto C_bb_ldlt = C_bb.ldlt();
+    std::cout << "11" << std::endl;
+    auto accumulate_C_bb_inv_C_bd_information = [&](const auto &key, const auto &C_bd_i) {
+      std::cout << "C_bd_i " <<  C_bd_i.rows() << ", " << C_bd_i.cols() << std::endl;
+      std::cout << "C_bb_ldlt " << C_bb_ldlt.rows() << ", " << C_bb_ldlt.cols() << std::endl;
+      std::cout << "information " << information.at(key).rows() << ", " << information.at(key).cols() << std::endl;
+      std::cout << "C_bb_inv_C_bd_information " << C_bb_inv_C_bd_information.rows() << ", " << C_bb_inv_C_bd_information.cols() << std::endl;
 
-    auto cross_matrix = [&](const auto &features) {
-      // Maybe only part of this;
-      Eigen::MatrixXd output = this->covariance_function_(features, train_features);
+      C_bb_inv_C_bd_information += C_bb_ldlt.solve(C_bd_i.transpose() * information.at(key));
+    };
+    C_db.apply(accumulate_C_bb_inv_C_bd_information);
+    std::cout << "12" << std::endl;
 
-      for (Eigen::Index i = 0; i < output.rows(); ++i) {
-        for (Eigen::Index j = 0; j < output.cols(); ++j) {
-          if (grouper_function_(features[i]) != grouper_function_(train_features[j])) {
-            output(i, j) = 0.;
-          }
-        }
+    /*
+     * PREDICT
+     */
+
+    const auto by_group = group_by(features, grouper_function_);
+    const auto indexers = by_group.indexers();
+
+    std::cout << "13" << std::endl;
+    Eigen::MatrixXd C_fb(features.size(), boundary_features.size());
+    for (std::size_t i = 0; i < features.size(); ++i) {
+      Eigen::Index ei = static_cast<Eigen::Index>(i);
+      std::vector<FeatureType> feature_vector = {features[i]};
+      C_fb.row(ei) = compute_covariance_matrix(this->covariance_function_,
+          grouper_function_(features[i]), feature_vector, boundary_features);
+    }
+    const auto C_fb_bb_inv = C_bb_ldlt.solve(C_fb.transpose()).transpose();
+    std::cout << "14" << std::endl;
+
+    //    auto fill_mean_pred = [&](const auto &key, const GroupIndices &indices) {
+    //      const auto group_features = subset(features, indices);
+    //      const auto C_fb = compute_covariance_matrix(this->covariance_function_, key, group_features, boundary);
+    //      const auto C_fd_group = this->covariance_function_(group_features, get_features(fit_models.at(key)));
+    //
+    //      Eigen::VectorXd group_mean = C_fd_group * information.at(key);
+    //      group_mean -= C_fb * C_bb_inv_C_bd_information;
+    //      set_subset(group_mean, indices, &mean);
+    //    };
+
+    auto compute_cross_block_transpose = [&](const auto &key, const auto &fit_model) {
+      const auto train_features = get_features(fit_model);
+      Eigen::Index group_size = fit_model.get_fit().train_covariance.rows();
+
+      Eigen::MatrixXd block = Eigen::MatrixXd::Zero(group_size, features.size());
+      // Only fill in the rows which correspond to prediction features in
+      // the same group.
+      for (const auto &idx : indexers.at(key)) {
+        std::vector<FeatureType> one_feature = {features[idx]};
+        block.col(idx) = this->covariance_function_(one_feature, train_features).row(0);
       }
-
-      output -= cov_func_fb(features, boundary) * C_bb_inv_C_bd;
-      return output;
+      block -= C_db.at(key) * C_fb_bb_inv.transpose();
+      return block;
     };
 
+    const auto cross_transpose = fit_models.apply(compute_cross_block_transpose);
+    std::cout << "15" << std::endl;
+    const auto C_dd_inv_cross = solver(cross_transpose);
+    std::cout << "16" << std::endl;
 
-    const auto cross = cross_matrix(features);
-    std::cout << cross.rows() << " , " << cross.cols() << std::endl;
-    std::cout << C_dd_inv_C_db.rows() << " , " << C_dd_inv_C_db.cols() << std::endl;
-    const Eigen::VectorXd pred_mean = cross * new_information;
+    Eigen::VectorXd mean = Eigen::VectorXd::Zero(features.size());
+    Eigen::MatrixXd cov = this->covariance_function_(features, features);
+    cov -= C_fb_bb_inv * C_fb.transpose();
+    std::cout << "17" << std::endl;
 
-    Eigen::MatrixXd cov = this->covariance_function_(features);
-    const Eigen::MatrixXd C_gb = cov_func_fb(features, boundary);
-    cov = cov - C_gb * C_bb.ldlt().solve(C_gb.transpose());
-    cov = cov - cross * solver(cross.transpose());
+    for (const auto &key : by_group.keys()) {
+      mean += cross_transpose.at(key).transpose() * information.at(key);
+      cov -= cross_transpose.at(key).transpose() * C_dd_inv_cross.at(key);
+    };
+    std::cout << "18" << std::endl;
 
-    return JointDistribution(pred_mean, cov);
+    return JointDistribution(mean, cov);
   }
 
   template <typename FeatureType>
