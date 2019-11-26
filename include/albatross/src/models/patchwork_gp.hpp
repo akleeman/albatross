@@ -147,10 +147,8 @@ struct Fit<PatchworkGPFit<FitModel<ModelType, FitType>, GrouperFunction>> {
 template <typename X, typename Y>
 inline
 auto block_solve(const X &lhs, const Y &rhs) {
-
   const auto solve_one_block = [&](const auto &key, const auto &x) {
     const Eigen::MatrixXd output = lhs.at(key).solve(x);
-    std::cout << key << " : " << output.rows() << ", " << output.cols() << std::endl;
     return output;
   };
 
@@ -190,18 +188,15 @@ public:
       const Fit<PatchworkGPFit<FitModelType, GrouperFunction>> &patchwork_fit,
       PredictTypeIdentity<JointDistribution> &&) const {
 
-    std::cout << "0" << std::endl;
     using GroupKey = typename Fit<PatchworkGPFit<FitModelType, GrouperFunction>>::GroupKey;
     const auto fit_models = patchwork_fit.fit_models;
 
-    std::cout << "1" << std::endl;
     auto get_obs_vector = [](const auto &fit_model) {
       return fit_model.predict(fit_model.get_fit().train_features).mean();
     };
 
     const auto obs_vectors = patchwork_fit.fit_models.apply(get_obs_vector);
 
-    std::cout << "2" << std::endl;
     auto get_features = [](const auto &fit_model) {
       return fit_model.get_fit().train_features;
     };
@@ -210,7 +205,6 @@ public:
       return fit_model.get_fit().train_covariance;
     };
 
-    std::cout << "3" << std::endl;
     const auto C_dd = fit_models.apply(get_train_covariance);
 
     const auto groups = fit_models.keys();
@@ -226,21 +220,17 @@ public:
       }
     }
 
-    std::cout << "4" << std::endl;
     const Eigen::MatrixXd C_bb = compute_boundary_covariance_matrix(this->covariance_function_,
         boundary_features, boundary_features);
 
-    std::cout << "5" << std::endl;
     auto boundary_cov_func = [&](const auto &key, const auto &fit_model) {
       return compute_covariance_matrix(this->covariance_function_, key, get_features(fit_model),
           boundary_features);
     };
 
     const auto C_db = fit_models.apply(boundary_cov_func);
-    std::cout << "6" << std::endl;
 
     const auto C_dd_inv_C_db = block_solve(C_dd, C_db);
-    std::cout << "7" << std::endl;
     // After the subsequent steps this'll be:
     //    S_bb = C_bb - C_db * C_dd^-1 * C_db
     Eigen::MatrixXd S_bb = C_bb;
@@ -249,7 +239,6 @@ public:
     };
     C_dd_inv_C_db.apply(subtract_off_outer_product);
 
-    std::cout << "8" << std::endl;
     const auto S_bb_ldlt = S_bb.ldlt();
 
     auto solver = [&](const auto &rhs) {
@@ -270,11 +259,8 @@ public:
       };
       Ai_rhs.apply(accumulate_SiCtAi);
 
-      std::cout << "SiCtAi_rhs : " << SiCtAi_rhs.rows() << ", " << SiCtAi_rhs.cols() << std::endl;
-
       auto product_with_SiCtAi_rhs = [&](const auto &key, const auto &C_db_i) {
         Eigen::MatrixXd output = C_db_i * SiCtAi_rhs;
-        std::cout << "produce: " << key << " " << output.rows() << ", " << output.cols() << std::endl;
         return output;
       };
       const auto C_db_SiCtAi_rhs = C_db.apply(product_with_SiCtAi_rhs);
@@ -282,6 +268,7 @@ public:
       auto output = block_solve(C_dd, C_db_SiCtAi_rhs);
       // Adds A^-1 rhs to A^-1 C S^-1 C^T A^-1 rhs
       auto add_Ai_rhs = [&](const auto &key, const auto &group) {
+        //return group + Ai_rhs.at(key);
         Eigen::MatrixXd output = group + Ai_rhs.at(key);
         return output;
       };
@@ -289,23 +276,14 @@ public:
     };
 
     const auto ys = fit_models.apply(get_obs_vector);
-    std::cout << "9" << std::endl;
     const auto information = solver(ys);
-    std::cout << "10" << std::endl;
 
     Eigen::VectorXd C_bb_inv_C_bd_information = Eigen::VectorXd::Zero(C_bb.rows());
     const auto C_bb_ldlt = C_bb.ldlt();
-    std::cout << "11" << std::endl;
     auto accumulate_C_bb_inv_C_bd_information = [&](const auto &key, const auto &C_bd_i) {
-      std::cout << "C_bd_i " <<  C_bd_i.rows() << ", " << C_bd_i.cols() << std::endl;
-      std::cout << "C_bb_ldlt " << C_bb_ldlt.rows() << ", " << C_bb_ldlt.cols() << std::endl;
-      std::cout << "information " << information.at(key).rows() << ", " << information.at(key).cols() << std::endl;
-      std::cout << "C_bb_inv_C_bd_information " << C_bb_inv_C_bd_information.rows() << ", " << C_bb_inv_C_bd_information.cols() << std::endl;
-
       C_bb_inv_C_bd_information += C_bb_ldlt.solve(C_bd_i.transpose() * information.at(key));
     };
     C_db.apply(accumulate_C_bb_inv_C_bd_information);
-    std::cout << "12" << std::endl;
 
     /*
      * PREDICT
@@ -314,7 +292,6 @@ public:
     const auto by_group = group_by(features, grouper_function_);
     const auto indexers = by_group.indexers();
 
-    std::cout << "13" << std::endl;
     Eigen::MatrixXd C_fb(features.size(), boundary_features.size());
     for (std::size_t i = 0; i < features.size(); ++i) {
       Eigen::Index ei = static_cast<Eigen::Index>(i);
@@ -323,17 +300,6 @@ public:
           grouper_function_(features[i]), feature_vector, boundary_features);
     }
     const auto C_fb_bb_inv = C_bb_ldlt.solve(C_fb.transpose()).transpose();
-    std::cout << "14" << std::endl;
-
-    //    auto fill_mean_pred = [&](const auto &key, const GroupIndices &indices) {
-    //      const auto group_features = subset(features, indices);
-    //      const auto C_fb = compute_covariance_matrix(this->covariance_function_, key, group_features, boundary);
-    //      const auto C_fd_group = this->covariance_function_(group_features, get_features(fit_models.at(key)));
-    //
-    //      Eigen::VectorXd group_mean = C_fd_group * information.at(key);
-    //      group_mean -= C_fb * C_bb_inv_C_bd_information;
-    //      set_subset(group_mean, indices, &mean);
-    //    };
 
     auto compute_cross_block_transpose = [&](const auto &key, const auto &fit_model) {
       const auto train_features = get_features(fit_model);
@@ -351,20 +317,16 @@ public:
     };
 
     const auto cross_transpose = fit_models.apply(compute_cross_block_transpose);
-    std::cout << "15" << std::endl;
     const auto C_dd_inv_cross = solver(cross_transpose);
-    std::cout << "16" << std::endl;
 
     Eigen::VectorXd mean = Eigen::VectorXd::Zero(features.size());
     Eigen::MatrixXd cov = this->covariance_function_(features, features);
     cov -= C_fb_bb_inv * C_fb.transpose();
-    std::cout << "17" << std::endl;
 
     for (const auto &key : by_group.keys()) {
       mean += cross_transpose.at(key).transpose() * information.at(key);
       cov -= cross_transpose.at(key).transpose() * C_dd_inv_cross.at(key);
     };
-    std::cout << "18" << std::endl;
 
     return JointDistribution(mean, cov);
   }
