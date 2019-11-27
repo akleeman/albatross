@@ -49,14 +49,37 @@ albatross::ParameterStore tune_model(ModelType &model,
   return get_tuner(model, loo_nll, data).tune();
 }
 
-bool get_interval(const double &x) {
-  return x <= 5.;
-}
+struct PatchworkFunctions {
 
-std::vector<double> boundaries(bool x, bool y) {
-  std::vector<double> boundary = {4., 5., 6.};
-  return boundary;
-}
+  double width = 2.;
+
+  long int grouper(const double &x) const {
+    return lround(x / width);
+  }
+
+  std::vector<double> boundary(long int x, long int y) const {
+    if (fabs(x - y) == 1) {
+      double center = width * 0.5 * (x + y);
+      std::vector<double> boundary = {center - 1., center, center + 1.};
+      return boundary;
+    }
+    return {};
+  }
+
+  long int nearest_group(const std::vector<long int> &groups, const long int &query) const {
+    long int nearest = query;
+    long int nearest_distance = std::numeric_limits<long int>::max();
+    for (const auto &group : groups) {
+      const auto distance = abs(query - group);
+      if (distance < nearest_distance) {
+        nearest = group;
+        nearest_distance = distance;
+      }
+    }
+    return nearest;
+  }
+
+};
 
 int main(int argc, char *argv[]) {
 
@@ -93,10 +116,16 @@ int main(int argc, char *argv[]) {
     return m.fit(dataset);
   };
 
-  const auto fit_models = data.group_by(get_interval).apply(fit_to_interval);
 
-  const auto patchwork = patchwork_gp_from_covariance(cov_func,
-      get_interval, boundaries);
+  PatchworkFunctions patchwork_functions;
+
+  auto grouper = [&](const auto &f) {
+    return patchwork_functions.grouper(f);
+  };
+
+  const auto fit_models = data.group_by(grouper).apply(fit_to_interval);
+
+  const auto patchwork = patchwork_gp_from_covariance(cov_func, patchwork_functions);
 
   const auto patchwork_fit = patchwork.from_fit_models(fit_models);
 
@@ -110,7 +139,21 @@ int main(int argc, char *argv[]) {
   RegressionDataset<double> dataset(grid_xs, targets);
 
 
-  const auto prediction = patchwork_fit.predict(dataset.features).marginal();
+  auto prediction = patchwork_fit.predict(dataset.features).marginal();
+
+  prediction = m.fit(data).predict(dataset.features).marginal();
+
+//  auto nearest_grouper = [&](const auto &f) {
+//    return patchwork_functions.nearest_group(fit_models.keys(), patchwork_functions.grouper(f));
+//  };
+//
+//  for (Eigen::Index i = 0; i < prediction.mean.size(); ++i) {
+//    const auto key = nearest_grouper(dataset.features[i]);
+//    const std::vector<double> one_feature = {dataset.features[i]};
+//    const auto nearest_pred = fit_models.at(key).predict(one_feature).marginal();
+//    prediction.mean[i] = nearest_pred.mean[0];
+//    prediction.covariance.diagonal()[0] = nearest_pred.get_diagonal(0);
+//  }
 
   std::ofstream output;
   output.open(FLAGS_output);
@@ -137,3 +180,4 @@ int main(int argc, char *argv[]) {
    */
 //  write_predictions_to_csv(FLAGS_output, fit_model, low, high);
 }
+

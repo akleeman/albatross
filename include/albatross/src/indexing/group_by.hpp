@@ -78,6 +78,8 @@ public:
 
   std::pair<KeyType, ValueType> first_group() const { return *map_.begin(); }
 
+  ValueType first_value() const { return map_.begin()->first; }
+
   auto min_value() const {
     const auto value_compare = [](const auto &x, const auto &y) {
       return x.second < y.second;
