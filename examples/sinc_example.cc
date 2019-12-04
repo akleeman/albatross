@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
   int n = std::stoi(FLAGS_n);
   const double low = -3.;
   const double high = 13.;
-  const double meas_noise_sd = 1.;
+  const double meas_noise_sd = 0.1;
 
   if (FLAGS_input == "") {
     FLAGS_input = "input.csv";

@@ -248,14 +248,16 @@ public:
   }
 };
 
-
 template <typename KeyType, typename EigenXpr>
-class Grouped<KeyType, EigenXpr, std::enable_if_t<is_eigen_xpr<EigenXpr>::value>>
-: public GroupedBase<KeyType, EigenXpr> {
-  static_assert(delay_static_assert<EigenXpr>::value,
-      "Storing the result of Eigen operations is dangerous since they often contain references which can easily lose scope, consider explicityly forming an Eigen::MatrixXd (or similar) as the value type");
+class Grouped<KeyType, EigenXpr,
+              std::enable_if_t<is_eigen_xpr<EigenXpr>::value>>
+    : public GroupedBase<KeyType, EigenXpr> {
+  static_assert(
+      delay_static_assert<EigenXpr>::value,
+      "Storing the result of Eigen operations is dangerous since they often "
+      "contain references which can easily lose scope, consider explicityly "
+      "forming an Eigen::MatrixXd (or similar) as the value type");
 };
-
 
 template <typename KeyType>
 class Grouped<KeyType, GroupIndices>

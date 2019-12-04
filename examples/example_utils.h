@@ -135,7 +135,6 @@ void maybe_create_training_data(const std::string &input_path, const int n,
     }
     data = subset(data, inds);
 
-
     {
       std::ofstream train_file(input_path);
       albatross::write_to_csv(train_file, data);

@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 
 sns.set_style('darkgrid')
 
+X_NAME = 'feature'
+Y_NAME = 'prediction'
+Y_VARIANCE_NAME = 'prediction_variance'
 
 def create_parser():
     p = argparse.ArgumentParser()
@@ -15,6 +18,47 @@ def create_parser():
     p.add_argument("--output")
     return p
 
+def plot_training_data(training_data, ax):
+    # Show the training points
+    ax.scatter(training_data[X_NAME],
+                training_data['target'], color='k',
+                label='training points')
+
+def plot_truth(predictions_data, ax):
+    # Plot the truth
+    ax.plot(predictions_data[X_NAME],
+             predictions_data['target'].astype('float'), color='black',
+             label='truth')
+
+
+
+def plot_prediction(predictions_data, model_name, color, ax):
+
+
+    std = np.sqrt(predictions_data[Y_VARIANCE_NAME].values)
+
+    # create +/- 3 sigma shading
+    ax.fill_between(predictions_data[X_NAME],
+                     predictions_data[Y_NAME] - 3 * std,
+                     predictions_data[Y_NAME] + 3 * std, color=color, alpha=0.1,
+                     label='+/- 3 sigma')
+    # and +/- 1 sigma shading
+    ax.fill_between(predictions_data[X_NAME],
+                     predictions_data[Y_NAME] - std,
+                     predictions_data[Y_NAME] + std, color=color,
+                     alpha=0.5, label='+/- sigma')
+    # Plot the mean
+    ax.plot(predictions_data[X_NAME],
+             predictions_data[Y_NAME], color=color,
+             label=model_name)
+    
+    
+def read_predictions(args):
+    if ',' in args.predictions:
+        model_pairs = [x.split('=') for x in args.predictions.split(',')]
+        return {k: pd.read_csv(v) for k, v in model_pairs}
+    else:
+        return {'model': pd.read_csv(args.predictions)}
 
 if __name__ == "__main__":
 
@@ -22,42 +66,23 @@ if __name__ == "__main__":
     args = p.parse_args()
 
     # read in the training and prediction data
-    train_path = args.train
-    predictions_path = args.predictions
-    print(train_path)
-    train_data = pd.read_csv(train_path)
-    x_name = 'feature'
-    y_name = 'prediction'
+    print(args.train)
+    training_data = pd.read_csv(args.train)
+    predictions_data = read_predictions(args)
+    
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
 
-    predictions_data = pd.read_csv(predictions_path)
-    std = np.sqrt(predictions_data['prediction_variance'].values)
+    colors = ['steelblue', 'firebrick', 'green']
+    for (model_name, data), color in zip(predictions_data.items(), colors):
+        plot_prediction(data, model_name, color, ax)
+    
+    plot_training_data(training_data, ax)
 
-    fig = plt.figure(figsize=(8, 8))
-    # create +/- 3 sigma shading
-    plt.fill_between(predictions_data[x_name],
-                     predictions_data[y_name] - 3 * std,
-                     predictions_data[y_name] + 3 * std, color='steelblue', alpha=0.1,
-                     label='+/- 3 sigma')
-    # and +/- 1 sigma shading
-    plt.fill_between(predictions_data[x_name],
-                     predictions_data[y_name] - std,
-                     predictions_data[y_name] + std, color='steelblue',
-                     alpha=0.5, label='+/- sigma')
-    # Plot the mean
-    plt.plot(predictions_data[x_name],
-             predictions_data[y_name], color='steelblue',
-             label='mean')
-    # Plot the truth
-    plt.plot(predictions_data[x_name],
-             predictions_data['target'].astype('float'), color='black',
-             label='truth')
-    # Show the training points
-    plt.scatter(train_data['feature'],
-                train_data['target'], color='k',
-                label='training points')
+    example_predictions = next(iter(predictions_data.values()))
+    plot_truth(example_predictions, ax)
 
-    y_min = np.min(predictions_data['target'].astype('float'))
-    y_max = np.max(predictions_data['target'].astype('float'))
+    y_min = np.min(example_predictions['target'].astype('float'))
+    y_max = np.max(example_predictions['target'].astype('float'))
     y_range = y_max - y_min
     plt.ylim([y_min - 0.1 * y_range, y_max + 0.1 * y_range])
 

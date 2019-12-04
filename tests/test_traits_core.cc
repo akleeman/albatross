@@ -335,7 +335,6 @@ TEST(test_traits_core, test_eigen_expressions) {
   using LDLTType = Eigen::LDLT<Eigen::MatrixXd>;
   EXPECT_FALSE(bool(is_eigen_plain_object<LDLTType>::value));
   EXPECT_FALSE(bool(is_eigen_xpr<LDLTType>::value));
-
 }
 
 } // namespace albatross
