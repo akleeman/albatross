@@ -1,7 +1,7 @@
 add_executable(albatross_unit_tests 
-  test_traits_core.cc
-  test_patchwork_gp.cc
-  test_group_by.cc
+  #test_traits_core.cc
+  #test_patchwork_gp.cc
+  test_sparse_gp.cc
   )
 target_include_directories(albatross_unit_tests SYSTEM PRIVATE
   "${gtest_SOURCE_DIR}"
