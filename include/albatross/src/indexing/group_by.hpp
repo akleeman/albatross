@@ -193,7 +193,6 @@ public:
     }
   }
 
-protected:
   std::map<KeyType, ValueType> map_;
 };
 

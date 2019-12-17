@@ -121,6 +121,7 @@ template <typename GroupKey, typename FeatureType> struct BoundaryFeature {
 };
 
 template <typename GroupKey, typename FeatureType>
+inline
 auto as_boundary_feature(GroupKey &&lhs, GroupKey &&rhs,
                          FeatureType &&feature) {
   using BoundaryFeatureType =
@@ -132,6 +133,7 @@ auto as_boundary_feature(GroupKey &&lhs, GroupKey &&rhs,
 }
 
 template <typename GroupKey, typename FeatureType>
+inline
 auto as_boundary_features(GroupKey &&lhs, GroupKey &&rhs,
                           const std::vector<FeatureType> &features) {
   using BoundaryFeatureType =
@@ -151,6 +153,8 @@ auto as_boundary_features(GroupKey &&lhs, GroupKey &&rhs,
 
 template <typename GroupKey, typename FeatureType> struct GroupFeature {
 
+  GroupFeature() : key(), feature(){};
+
   GroupFeature(const GroupKey &key_, const FeatureType &feature_)
       : key(key_), feature(feature_){};
 
@@ -162,6 +166,7 @@ template <typename GroupKey, typename FeatureType> struct GroupFeature {
 };
 
 template <typename GroupKey, typename FeatureType>
+inline
 auto as_group_feature(GroupKey &&key, FeatureType &&feature) {
   using GroupFeatureType = GroupFeature<typename std::decay<GroupKey>::type,
                                         typename std::decay<FeatureType>::type>;
@@ -169,28 +174,36 @@ auto as_group_feature(GroupKey &&key, FeatureType &&feature) {
                           std::forward<FeatureType>(feature));
 }
 
+template <typename GroupKey, typename FeatureType>
+inline
+auto as_group_feature(GroupKey &&key, GroupFeature<GroupKey, FeatureType> &feature) {
+  return feature;
+}
+
 template <typename GrouperFunction, typename FeatureType>
-auto as_group_features(const GroupBy<std::vector<FeatureType>, GrouperFunction>
-                           &grouped_features) {
+inline
+auto as_group_features(const std::vector<FeatureType> &features,
+    const GrouperFunction &grouper_function) {
 
   using GroupKey =
       typename GroupBy<std::vector<FeatureType>, GrouperFunction>::KeyType;
   using GroupFeatureType =
       GroupFeature<GroupKey, typename std::decay<FeatureType>::type>;
 
-  std::vector<GroupFeatureType> group_features;
+  std::vector<GroupFeatureType> group_features(features.size());
 
-  auto emplace_in_output = [&](const auto &key, const auto &features) {
-    for (const auto &f : features) {
-      group_features.emplace_back(as_group_feature(key, f));
+  auto emplace_in_output = [&](const auto &key, const auto &idx) {
+    for (const auto &i : idx) {
+      group_features[i] = as_group_feature(key, features[i]);
     }
   };
-  grouped_features.apply(emplace_in_output);
+  group_by(features, grouper_function).index_apply(emplace_in_output);
 
   return group_features;
 }
 
 template <typename GroupKey, typename FeatureType>
+inline
 auto as_group_features(const GroupKey &key,
                        const std::vector<FeatureType> &features) {
   using GroupFeatureType =
@@ -246,6 +259,8 @@ template <typename SubCaller> struct PatchworkCallerBase {
 
     if (x.lhs == y.lhs && x.rhs == y.rhs) {
       return 2 * SubCaller::call(cov_func, x.feature, y.feature);
+    } else if (x.lhs == y.rhs && x.rhs == y.lhs) {
+      return -2 * SubCaller::call(cov_func, x.feature, y.feature);
     } else if (x.lhs == y.lhs && x.rhs != y.rhs) {
       return SubCaller::call(cov_func, x.feature, y.feature);
     } else if (x.lhs != y.lhs && x.rhs == y.rhs) {
@@ -273,13 +288,6 @@ struct Fit<PatchworkGPFit<FitModel<ModelType, FitType>, GroupKey>> {
   using FeatureType = typename FitType::Feature;
 
   Grouped<GroupKey, FitModel<ModelType, FitType>> fit_models;
-
-  //  Eigen::MatrixXd C_bb_inv_C_bd;
-  //  Grouped<GroupKey, Eigen::VectorXd> information;
-  //  PatchworkFunctions patchwork_functions;
-  //  using GroupKey = typename
-  //  details::grouper_result<PatchworkFunctions::GrouperFunction,
-  //                                                    FeatureType>::type;
 
   Fit(){};
 
@@ -362,19 +370,22 @@ public:
 
     const auto boundary_features =
         build_boundary_features(boundary_function, fit_models.keys());
+    std::cout << "boundary_features size: " << boundary_features.size() << std::endl;
 
     auto patchwork_caller = [&](const auto &x, const auto &y) {
       return PatchworkCaller::call(this->covariance_function_, x, y);
     };
 
     auto patchwork_covariance_matrix = [&](const auto &xs, const auto &ys) {
-      return compute_covariance_matrix(patchwork_caller, xs, ys);
+      const Eigen::MatrixXd output = compute_covariance_matrix(patchwork_caller, xs, ys);
+      return output;
     };
 
     // C_bb is the covariance matrix between all boundaries, it will
     // have a lot of zeros so could be decomposed more efficiently
-    const Eigen::MatrixXd C_bb =
+    Eigen::MatrixXd C_bb =
         patchwork_covariance_matrix(boundary_features, boundary_features);
+    C_bb.diagonal().array() += 1e-6;
     const auto C_bb_ldlt = C_bb.ldlt();
 
     // C_dd is the large block diagonal matrix, with one block for each model
@@ -388,14 +399,37 @@ public:
       return fit_model.get_fit().train_features;
     };
 
+    auto for_inference = boundary_features[0].feature;
+    using BoundaryFeatureType = decltype(for_inference);
+    std::vector<BoundaryFeatureType> direct_boundary_features;
+    for (const auto &b : boundary_features) {
+      direct_boundary_features.push_back(b.feature);
+    }
+
     // C_db holds the covariance between each model and all boundaries.
     // The actual storage is effectively a map with values which correspond
     // to the covariance between that model's features and the boundaries.
     auto C_db_one_group = [&](const auto &key, const auto &fit_model) {
       const auto group_features =
           as_group_features(key, get_features(fit_model));
-      return patchwork_covariance_matrix(group_features, boundary_features);
+
+
+      const Eigen::MatrixXd direct = this->covariance_function_(get_features(fit_model), direct_boundary_features);
+      const Eigen::MatrixXd group_cov = patchwork_covariance_matrix(group_features, boundary_features);
+      const Eigen::VectorXd pred = group_cov.transpose() * fit_model.get_fit().information;
+
+//      std::cout << "=============== C_db ============== " << std::endl;
+//      for (Eigen::Index i = 0; i < 3; ++i) {
+//        std::cout << "Boundary Feature: " << i << std::endl;
+//        for (Eigen::Index j = 0; j < direct.rows(); ++j) {
+//          if (fabs(direct(j, i)) > 1e-8) {
+//            std::cout << "  " << j << "  :  " << direct(j, i) << "     " << group_cov(j, i) << std::endl;
+//          }
+//        }
+//      }
+      return group_cov;
     };
+
     const auto C_db = fit_models.apply(C_db_one_group);
     const auto C_dd_inv_C_db = block_diag_solve(C_dd, C_db);
 
@@ -450,18 +484,17 @@ public:
     /*
      * PREDICT
      */
-
     auto predict_grouper = [&](const auto &f) {
       return patchwork_functions_.nearest_group(
           C_db.keys(), patchwork_functions_.grouper(f));
     };
 
-    const auto grouped = group_by(features, predict_grouper);
-    const auto group_features = as_group_features(grouped);
+    auto group_features = as_group_features(features, predict_grouper);
 
+    std::cout << "C_fb" << std::endl;
     const Eigen::MatrixXd C_fb =
         patchwork_covariance_matrix(group_features, boundary_features);
-    const auto C_fb_bb_inv = C_bb_ldlt.solve(C_fb.transpose()).transpose();
+    const Eigen::MatrixXd C_fb_bb_inv = C_bb_ldlt.solve(C_fb.transpose()).transpose();
 
     auto compute_cross_block_transpose = [&](const auto &key,
                                              const auto &fit_model) {
@@ -472,20 +505,27 @@ public:
       block -= C_db.at(key) * C_fb_bb_inv.transpose();
       return block;
     };
+    std::cout << "cross_transpose" << std::endl;
 
     const auto cross_transpose =
         fit_models.apply(compute_cross_block_transpose);
+    std::cout << "C_dd_inv_cross" << std::endl;
     const auto C_dd_inv_cross = solver(cross_transpose);
 
+    std::cout << C_db.size() << std::endl;
+
+    std::cout << "mean" << std::endl;
     const Eigen::VectorXd mean =
         block_inner_product(cross_transpose, information);
     const Eigen::MatrixXd explained =
         block_inner_product(cross_transpose, C_dd_inv_cross);
 
+    std::cout << "cov" << std::endl;
     const Eigen::MatrixXd cov =
         patchwork_covariance_matrix(group_features, group_features) -
         C_fb_bb_inv * C_fb.transpose() - explained;
 
+    std::cout << "cov shape" << mean.size() << "  " << cov.rows() << ", " << cov.cols() << std::endl;
     return JointDistribution(mean, cov);
   }
 
@@ -518,6 +558,9 @@ public:
         : functions_(functions) {}
 
     template <typename X> auto grouper(const X &x) const {
+      static_assert(details::patchwork_functions_are_valid<PatchworkFunctions,
+                                                           X>::value,
+                    "Invalid PatchworkFunctions for this FeatureType");
       return functions_.grouper(x);
     }
 
