@@ -40,6 +40,16 @@ set_variant(const X &x, variant<Ts...> *to_set) {
 }
 
 /*
+ * In this case X is not a variant so we can simply assign it.
+ */
+template <typename... Ts, typename X>
+inline std::enable_if_t<
+    !is_variant<X>::value && !is_in_variant<X, variant<Ts...>>::value, void>
+set_variant(const X &x, variant<Ts...> *to_set) {
+  assert(false);
+}
+
+/*
  * Convert a vector of one type
  */
 template <typename... Ts, typename X>
@@ -47,7 +57,9 @@ inline void set_variants(const std::vector<X> &xs,
                          std::vector<variant<Ts...>> *to_set) {
   to_set->resize(xs.size());
   for (std::size_t i = 0; i < xs.size(); ++i) {
-    set_variant(xs[i], &to_set->operator[](i));
+    if (is_in_variant<X, variant<Ts...>>::value) {
+      set_variant(xs[i], &to_set->operator[](i));
+    }
   }
 }
 

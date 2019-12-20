@@ -70,6 +70,10 @@ public:
 
   auto find(const KeyType &key) const { return map_.find(key); }
 
+  std::size_t erase(const KeyType &key) {
+    return map_.erase(key);
+  }
+
   std::vector<KeyType> keys() const { return map_keys(map_); }
 
   std::vector<ValueType> values() const { return map_values(map_); }
@@ -193,7 +197,6 @@ public:
     }
   }
 
-protected:
   std::map<KeyType, ValueType> map_;
 };
 

@@ -320,6 +320,9 @@ struct Fit<PatchworkGPFit<FitModel<ModelType, FitType>, GroupKey,
 
   Fit(){};
 
+  Fit(const Grouped<GroupKey, FitModel<ModelType, FitType>> &fit_models_)
+  : fit_models(fit_models_) {};
+
   Fit(const Grouped<GroupKey, FitModel<ModelType, FitType>> &fit_models_,
       const Grouped<GroupKey, Eigen::MatrixXd> &information_,
       const std::vector<BoundaryFeatureType> &boundary_features_,
@@ -356,7 +359,6 @@ auto build_boundary_features(const BoundaryFunction &boundary_function,
       }
     }
   }
-  assert(boundary_features.size() > 0);
   return boundary_features;
 }
 
@@ -422,11 +424,6 @@ public:
   auto
   from_fit_models(const Grouped<GroupKey, FitModelType> &fit_models) const {
 
-    auto get_obs_vector = [](const auto &fit_model) {
-      return fit_model.predict(fit_model.get_fit().train_features).mean();
-    };
-    const auto obs_vectors = fit_models.apply(get_obs_vector);
-
     auto boundary_function = [&](const GroupKey &x, const GroupKey &y) {
       return patchwork_functions_.boundary(x, y);
     };
@@ -434,10 +431,26 @@ public:
     const auto boundary_features =
         build_boundary_features(boundary_function, fit_models.keys());
 
+    if (fit_models.size() == 1) {
+      using BoundaryFeatureType = typename std::decay<typename decltype(
+          boundary_features)::value_type>::type;
+      using PatchworkFitType =
+          Fit<PatchworkGPFit<FitModelType, GroupKey, BoundaryFeatureType>>;
+      return FitModel<PatchworkGaussianProcess, PatchworkFitType>(
+          *this, PatchworkFitType(fit_models));
+    }
+
+    assert(boundary_features.size() > 0);
+
+    auto get_obs_vector = [](const auto &fit_model) {
+      return fit_model.predict(fit_model.get_fit().train_features).mean();
+    };
+    const auto obs_vectors = fit_models.apply(get_obs_vector);
+
     // C_bb is the covariance matrix between all boundaries, it will
     // have a lot of zeros so it could be decomposed more efficiently
     const Eigen::MatrixXd C_bb =
-        patchwork_covariance_matrix(boundary_features, boundary_features);
+        this->patchwork_covariance_matrix(boundary_features, boundary_features);
     const auto C_bb_ldlt = C_bb.ldlt();
 
     // C_dd is the large block diagonal matrix, with one block for each model
@@ -453,7 +466,7 @@ public:
     auto C_db_one_group = [&](const auto &key, const auto &fit_model) {
       const auto group_features =
           as_group_features(key, fit_model.get_fit().train_features);
-      return patchwork_covariance_matrix(group_features, boundary_features);
+      return this->patchwork_covariance_matrix(group_features, boundary_features);
     };
     const auto C_db = fit_models.apply(C_db_one_group);
     const auto C_dd_inv_C_db = block_diag_solve(C_dd, C_db);
@@ -504,7 +517,7 @@ public:
 
     auto group_features = as_group_features(features, predict_grouper);
 
-    const Eigen::MatrixXd C_fb = patchwork_covariance_matrix(
+    const Eigen::MatrixXd C_fb = this->patchwork_covariance_matrix(
         group_features, patchwork_fit.boundary_features);
     const Eigen::MatrixXd C_fb_bb_inv =
         patchwork_fit.C_bb_ldlt.solve(C_fb.transpose()).transpose();
@@ -514,7 +527,7 @@ public:
       const auto train_features =
           as_group_features(key, fit_model.get_fit().train_features);
       Eigen::MatrixXd block =
-          patchwork_covariance_matrix(train_features, group_features);
+          this->patchwork_covariance_matrix(train_features, group_features);
       block -= patchwork_fit.C_db.at(key) * C_fb_bb_inv.transpose();
       return block;
     };
@@ -531,7 +544,7 @@ public:
         block_inner_product(cross_transpose, C_dd_inv_cross);
 
     const Eigen::MatrixXd cov =
-        patchwork_covariance_matrix(group_features, group_features) -
+        this->patchwork_covariance_matrix(group_features, group_features) -
         C_fb_bb_inv * C_fb.transpose() - explained;
 
     return JointDistribution(mean, cov);
@@ -561,6 +574,8 @@ public:
   }
 
   struct PatchworkFunctionsWithMeasurement {
+
+    PatchworkFunctionsWithMeasurement() {};
 
     PatchworkFunctionsWithMeasurement(PatchworkFunctions functions)
         : functions_(functions) {}

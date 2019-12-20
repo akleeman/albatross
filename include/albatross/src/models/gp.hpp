@@ -205,6 +205,8 @@ public:
 
   std::string get_name() const { return model_name_; };
 
+  std::string set_name(const std::string &model_name) const { model_name_ = model_name; };
+
   /*
    * The Gaussian Process Regression model derives its parameters from
    * the covariance functions.
@@ -341,6 +343,9 @@ public:
     return covariance_function_.state_space_representation(features);
   }
 
+  CovFunc covariance_function_;
+  std::string model_name_;
+
 protected:
   /*
    * CRTP Helpers
@@ -348,8 +353,6 @@ protected:
   ImplType &impl() { return *static_cast<ImplType *>(this); }
   const ImplType &impl() const { return *static_cast<const ImplType *>(this); }
 
-  CovFunc covariance_function_;
-  std::string model_name_;
 };
 
 template <typename FeatureType, typename GPType, typename GroupKey>
