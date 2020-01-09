@@ -52,6 +52,9 @@ protected:
                      "The ModelType *almost* has a _fit_impl method for "
                      "FeatureType, but it appears to be invalid");
 
+  // TEST FOR THE CASE WHEN _fit_impl returns something but it isn't a `Fit<>`
+  // type.
+
   template <typename FeatureType,
             typename std::enable_if<
                 !has_possible_fit<ModelType, FeatureType>::value &&

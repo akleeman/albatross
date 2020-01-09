@@ -88,7 +88,6 @@ int main(int argc, char *argv[]) {
   if (FLAGS_mode == "radial") {
     // this approach uses a squared exponential radial function to capture
     // the function we're estimating using non-parametric techniques
-    //    const Polynomial<1> polynomial(100.);
     using SquaredExp = SquaredExponential<EuclideanDistance>;
     const SquaredExp squared_exponential(3.5, 5.7);
     auto cov = squared_exponential + measurement_only(indep_noise);
