@@ -209,4 +209,17 @@ TEST(test_apply, test_vector_apply_any) {
   EXPECT_EQ(actual, expected);
 }
 
+TEST(test_apply, test_apply_range) {
+
+  std::vector<std::size_t> seen;
+  auto mark_seen = [&](const std::size_t ind) { seen.push_back(ind); };
+
+  const std::size_t n = 10;
+  apply(ApplyRange(n), mark_seen);
+
+  for (std::size_t i = 0; i < n; ++i) {
+    EXPECT_EQ(seen[i], i);
+  }
+}
+
 } // namespace albatross

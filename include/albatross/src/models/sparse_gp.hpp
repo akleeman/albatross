@@ -224,16 +224,22 @@ public:
         as_measurements(out_of_order_features);
 
     std::vector<std::size_t> reordered_inds;
-    BlockDiagonal K_ff;
     for (const auto &pair : indexer) {
       reordered_inds.insert(reordered_inds.end(), pair.second.begin(),
                             pair.second.end());
-      auto subset_features =
-          subset(out_of_order_measurement_features, pair.second);
-      K_ff.blocks.emplace_back(this->covariance_function_(subset_features));
-      K_ff.blocks.back().diagonal() +=
-          subset(out_of_order_targets.covariance.diagonal(), pair.second);
     }
+
+    BlockDiagonal K_ff;
+    K_ff.blocks.resize(indexer.size());
+    const auto indexer_values = map_values(indexer);
+    auto fill_K_ff = [&](const std::size_t &i) {
+      auto subset_features =
+          subset(out_of_order_measurement_features, indexer_values[i]);
+      K_ff.blocks[i] = this->covariance_function_(subset_features);
+      K_ff.blocks[i].diagonal() +=
+          subset(out_of_order_targets.covariance.diagonal(), indexer_values[i]);
+    };
+    async_apply(ApplyRange(indexer.size()), fill_K_ff);
 
     const auto features =
         subset(out_of_order_measurement_features, reordered_inds);
@@ -258,15 +264,24 @@ public:
     //          = P^T P
     const Eigen::MatrixXd P = K_uu_llt.matrixL().solve(K_fu.transpose());
 
+    Eigen::Index col_cnt = 0;
+    std::vector<Eigen::Index> dividing_indices;
+    for (const auto &pair : indexer) {
+      dividing_indices.push_back(col_cnt);
+      col_cnt += static_cast<Eigen::Index>(pair.second.size());
+    }
+
     // We only need the diagonal blocks of Q_ff to get A
     BlockDiagonal Q_ff_diag;
-    Eigen::Index i = 0;
-    for (const auto &pair : indexer) {
-      Eigen::Index cols = static_cast<Eigen::Index>(pair.second.size());
-      auto P_cols = P.block(0, i, P.rows(), cols);
-      Q_ff_diag.blocks.emplace_back(P_cols.transpose() * P_cols);
-      i += cols;
-    }
+    Q_ff_diag.blocks.resize(indexer.size());
+    auto fill_Q_ff = [&](const std::size_t i) {
+      Eigen::Index cols = static_cast<Eigen::Index>(indexer_values[i].size());
+      auto P_cols = P.block(0, dividing_indices[i], P.rows(), cols);
+      Q_ff_diag.blocks[i] = P_cols.transpose() * P_cols;
+    };
+
+    async_apply(ApplyRange(indexer.size()), fill_Q_ff);
+
     auto A = K_ff - Q_ff_diag;
 
     // It's possible that the inducing points will perfectly describe
@@ -314,7 +329,15 @@ public:
      *
      *     v = L^-T B^-1 P * A^-1 y
      */
-    const auto A_llt = A.llt();
+
+    BlockDiagonalLLT A_llt;
+    A_llt.blocks.resize(A.blocks.size());
+    auto fill_A_llt = [&](const std::size_t i) {
+      A_llt.blocks[i] = A.blocks[i].llt();
+    };
+    async_apply(ApplyRange(A.blocks.size()), fill_A_llt);
+
+    //    const auto A_llt = A.llt();
     Eigen::MatrixXd Pt = P.transpose();
     const auto A_sqrt = A_llt.matrixL();
     Eigen::MatrixXd RtR = A_sqrt.solve(Pt);

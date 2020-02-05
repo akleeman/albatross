@@ -15,6 +15,29 @@
 
 namespace albatross {
 
+struct ApplyRange {
+  std::size_t start;
+  std::size_t end;
+  ApplyRange(const std::size_t end_) : start(0), end(end_){};
+  ApplyRange(const std::size_t start_, const std::size_t end_)
+      : start(start_), end(end_){};
+};
+
+// Range
+
+template <typename ApplyFunction,
+          typename ApplyType = typename details::value_only_apply_result<
+              ApplyFunction, std::size_t>::type,
+          typename std::enable_if<details::is_valid_value_only_apply_function<
+                                      ApplyFunction, std::size_t>::value &&
+                                      std::is_same<void, ApplyType>::value,
+                                  int>::type = 0>
+void apply(const ApplyRange &range, const ApplyFunction &f) {
+  for (std::size_t i = range.start; i < range.end; ++i) {
+    f(i);
+  }
+}
+
 // Vector
 template <typename ValueType, typename ApplyFunction,
           typename ApplyType = typename details::value_only_apply_result<
