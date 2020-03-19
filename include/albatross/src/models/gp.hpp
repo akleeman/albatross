@@ -387,6 +387,8 @@ public:
 
   MeanFunc get_mean() const { return mean_function_; };
 
+  MeanFunc &mutable_mean() { return mean_function_; };
+
   template <typename FeatureType>
   Eigen::MatrixXd
   compute_covariance(const std::vector<FeatureType> &features) const {
