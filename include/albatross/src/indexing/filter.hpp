@@ -24,7 +24,7 @@ template <typename ToKeepFunction, typename ValueType,
 inline std::vector<ValueType> filter(const std::vector<ValueType> &values,
                                      ToKeepFunction &&to_keep) {
   std::vector<ValueType> output;
-  for (const auto &v : values) {
+  for (const ValueType &v : values) {
     if (to_keep(v)) {
       output.emplace_back(v);
     }
