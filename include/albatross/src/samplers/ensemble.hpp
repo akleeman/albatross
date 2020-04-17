@@ -15,10 +15,24 @@
 
 namespace albatross {
 
-inline auto split_indices(std::size_t n, std::size_t k) {
+inline std::vector<std::vector<std::size_t>>
+random_split_indices(std::size_t n, std::size_t k,
+                     std::default_random_engine &gen) {
   std::vector<std::size_t> inds(n);
   std::iota(inds.begin(), inds.end(), 0);
-  return group_by(inds, KFoldGrouper(k)).indexers().values();
+
+  const std::size_t split_size =
+      static_cast<std::size_t>(std::ceil(static_cast<double>(n) / k));
+
+  std::vector<std::vector<std::size_t>> splits;
+  for (std::size_t split_ind = 0; split_ind < k - 1; ++split_ind) {
+    const auto next_inds = random_without_replacement(inds, split_size, gen);
+    splits.push_back(next_inds);
+    inds = indices_complement(next_inds, inds.size());
+    assert(inds.size() > 0);
+  }
+  splits.push_back(inds);
+  return splits;
 }
 
 inline std::size_t random_complement(std::size_t n, std::size_t i,
@@ -45,8 +59,8 @@ template <typename ComputeLogProb>
 EnsembleSamplerState stretch_move_step(const EnsembleSamplerState &ensembles,
                                        ComputeLogProb compute_log_prob,
                                        std::default_random_engine &gen,
-                                       std::size_t n_splits = 2,
-                                       double a = 2.) {
+                                       std::size_t n_splits = 2, double a = 2.,
+                                       bool async = DEFAULT_USE_ASYNC) {
 
   const std::size_t n_ensembles = ensembles.size();
   const std::size_t n_dim = ensembles[0].params.size();
@@ -59,12 +73,11 @@ EnsembleSamplerState stretch_move_step(const EnsembleSamplerState &ensembles,
   std::uniform_real_distribution<double> uniform_real(0.0, 1.0);
   std::uniform_int_distribution<std::size_t> uniform_int(0, n_ensembles - 1);
 
-  const auto splits = split_indices(n_ensembles, n_splits);
+  const auto splits = random_split_indices(n_ensembles, n_splits, gen);
 
   EnsembleSamplerState next_ensembles(ensembles);
 
-  for (const auto &split : splits) {
-
+  auto sample_one_split = [&](const std::vector<std::size_t> &split) {
     const auto complement = indices_complement(split, n_ensembles);
     std::uniform_int_distribution<std::size_t> random_complement_idx(
         0, complement.size() - 1);
@@ -117,17 +130,23 @@ EnsembleSamplerState stretch_move_step(const EnsembleSamplerState &ensembles,
         next_ensembles[k].accepted = false;
       }
     }
+  };
+
+  if (async) {
+    async_apply(splits, sample_one_split);
+  } else {
+    apply(splits, sample_one_split);
   }
 
   return next_ensembles;
 }
 
-template <typename ComputeLogProb, typename CallbackFunc = NullCallback>
-std::vector<EnsembleSamplerState>
-ensemble_sampler(ComputeLogProb &&compute_log_prob,
-                 const EnsembleSamplerState &initial_state,
-                 std::size_t max_iterations, std::default_random_engine &gen,
-                 CallbackFunc &&callback = NullCallback()) {
+template <typename ComputeLogProb, typename MoveFunction,
+          typename CallbackFunc = NullCallback>
+std::vector<EnsembleSamplerState> ensemble_sampler(
+    ComputeLogProb &&compute_log_prob, MoveFunction &&move_function,
+    const EnsembleSamplerState &initial_state, std::size_t max_iterations,
+    std::default_random_engine &gen, CallbackFunc &&callback = NullCallback()) {
 
   EnsembleSamplerState state = ensure_finite_initial_state(
       std::forward<ComputeLogProb>(compute_log_prob), initial_state, gen);
@@ -137,13 +156,31 @@ ensemble_sampler(ComputeLogProb &&compute_log_prob,
   callback(0, state);
 
   for (std::size_t iter = 1; iter <= max_iterations; ++iter) {
-    const auto next_state = stretch_move_step<ComputeLogProb>(
+    const auto next_state = move_function(
         state, std::forward<ComputeLogProb>(compute_log_prob), gen);
     output.push_back(next_state);
     callback(iter, next_state);
     state = next_state;
   }
   return output;
+}
+
+template <typename ComputeLogProb, typename CallbackFunc = NullCallback>
+std::vector<EnsembleSamplerState>
+ensemble_sampler(ComputeLogProb &&compute_log_prob,
+                 const EnsembleSamplerState &initial_state,
+                 std::size_t max_iterations, std::default_random_engine &gen,
+                 CallbackFunc &&callback = NullCallback()) {
+
+  auto stretch_move = [&](const auto &state, auto &&compute_log_prob,
+                          auto &gen) -> EnsembleSamplerState {
+    return stretch_move_step<ComputeLogProb>(
+        state, std::forward<ComputeLogProb>(compute_log_prob), gen);
+  };
+
+  return ensemble_sampler(std::forward<ComputeLogProb>(compute_log_prob),
+                          stretch_move, initial_state, max_iterations, gen,
+                          std::forward<CallbackFunc>(callback));
 }
 
 template <typename ComputeLogProb, typename CallbackFunc = NullCallback>
