@@ -40,8 +40,15 @@ inline void write_ensemble_sampler_state(
 
     const auto params =
         set_tunable_params_values(param_store, ensemble[i].params);
+
+    auto precise_string = [](const double &d) {
+      std::ostringstream oss;
+      oss << std::scientific << d;
+      return oss.str();
+    };
+
     for (const auto &param : params) {
-      row[param.first] = std::to_string(param.second.value);
+      row[param.first] = precise_string(param.second.value);
     }
     row["iteration"] = std::to_string(iteration);
     row["log_probability"] = std::to_string(ensemble[i].log_prob);

@@ -37,7 +37,7 @@ public:
 
   void assert_valid() const {
     if (this->vectorD().minCoeff() <= 0.) {
-      assert(false && "Attempt to compute LDLT of a non PSD matrix");
+      std::cout << "Attempt to compute LDLT of a non PSD matrix: " << this->vectorD().minCoeff() << std::endl;
     }
   }
 

@@ -106,14 +106,21 @@ std::vector<std::vector<double>> initial_params_from_jitter(
   std::vector<std::vector<double>> output;
   std::vector<double> double_params = get_tunable_parameters(params).values;
   output.push_back(double_params);
-  for (std::size_t i = 0; i < n - 1; ++i) {
-
+  std::size_t iteration_count = 0;
+  while (output.size() < n) {
+    ++iteration_count;
     std::vector<double> perturbed(double_params);
     for (auto &d : perturbed) {
-      d += jitter_distribution(gen);
+      d += d * jitter_distribution(gen);
     };
-
-    output.push_back(perturbed);
+    ParameterStore perturbed_store(params);
+    set_tunable_params_values(perturbed_store, perturbed);
+    if (params_are_valid(perturbed_store)) {
+      output.push_back(perturbed);
+    }
+    if (iteration_count > 10000 * n) {
+      assert(false && "Initialization failed, couldn't find valid initial params using jitter");
+    }
   }
   return output;
 }
