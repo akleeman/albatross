@@ -56,11 +56,11 @@ compute_gradient(Function f, const ParameterStore &params, double f_val,
 
   auto compute_single_sub_gradient = [&](std::size_t i) {
     double epsilon = 1e-6;
-    const double range =
-        tunable_params.upper_bounds[i] - tunable_params.lower_bounds[i];
-    if (std::isfinite(range)) {
-      epsilon = 1e-8 * range;
-    }
+//    const double range =
+//        tunable_params.upper_bounds[i] - tunable_params.lower_bounds[i];
+//    if (std::isfinite(range)) {
+//      epsilon = 1e-8 * range;
+//    }
     auto perturbed_params = get_perturbed(i, epsilon);
 
     if (!params_are_valid(perturbed_params)) {
@@ -111,12 +111,12 @@ finite_difference_evaluation(Function f, const ParameterStore &params,
     return set_tunable_params_values(params, perturbed);
   };
 
-  double epsilon = 1e-6;
-  const double range =
-      tunable_params.upper_bounds[i] - tunable_params.lower_bounds[i];
-  if (std::isfinite(range)) {
-    epsilon = 1e-8 * range;
-  }
+  double epsilon = 1e-4;
+//  const double range =
+//      tunable_params.upper_bounds[i] - tunable_params.lower_bounds[i];
+//  if (std::isfinite(range)) {
+//    epsilon = 1e-8 * range;
+//  }
   auto perturbed_params = get_perturbed(i, epsilon);
 
   if (!params_are_valid(perturbed_params)) {
@@ -154,6 +154,50 @@ compute_value_and_gradient(Function f, const ParameterStore &params) {
   }
 
   return std::make_pair(f_val, grad);
+}
+
+template <typename Function>
+inline void
+local_topography(Function f, const ParameterStore &params) {
+
+  TunableParameters tunable_params = get_tunable_parameters(params);
+
+  auto get_perturbed = [&](std::size_t i, double epsilon) {
+    std::vector<double> perturbed(tunable_params.values);
+    perturbed[i] = tunable_params.values[i] + epsilon;
+    return set_tunable_params_values(params, perturbed, true);
+  };
+
+  std::vector<int> powers = {-4, -3, -2, -1, 0, 1, 2};
+  std::vector<double> epsilons;
+  for (std::size_t i = 0; i < powers.size(); ++i) {
+    epsilons.push_back(-std::pow(10., powers[powers.size() - 1 - i]));
+  }
+  for (std::size_t i = 0; i < powers.size(); ++i) {
+    epsilons.push_back(std::pow(10., powers[i]));
+  }
+
+  std::cout << "TOPOGRAPHY,name";
+  for (const auto &eps : epsilons) {
+    std::cout << "," << eps;
+  }
+  std::cout << std::endl;
+
+  for (std::size_t i = 0; i < tunable_params.values.size(); ++i) {
+
+    auto evaluate_function = [&](double epsilon) {
+      return f(get_perturbed(i, epsilon));
+    };
+
+    const auto evaluations = albatross::async_apply(epsilons, evaluate_function);
+
+    std::cout << "TOPOGRAPHY," << tunable_params.names[i];
+    for (std::size_t j = 0; j < evaluations.size(); ++j) {
+      std::cout << "," << evaluations[j];
+    }
+    std::cout << std::endl;
+  }
+
 }
 
 } // namespace albatross

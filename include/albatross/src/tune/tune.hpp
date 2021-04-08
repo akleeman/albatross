@@ -315,11 +315,19 @@ struct LBFGSTuner {
   ParameterStore initial_params;
   std::ostream &output_stream;
   bool use_async;
+  LBFGSpp::LBFGSBParam<double> lbfgsb_params;
 
   LBFGSTuner(const ParameterStore &initial_params_,
              std::ostream &output_stream_ = std::cout)
       : initial_params(initial_params_), output_stream(output_stream_),
-        use_async(false){};
+        use_async(false), lbfgsb_params() {
+
+    lbfgsb_params.epsilon = 1e-6;
+    lbfgsb_params.max_iterations = 100;
+    lbfgsb_params.wolfe = 100.;
+    lbfgsb_params.ftol = 1e-12;
+
+  };
 
   template <
       typename ObjectiveFunction,
@@ -327,13 +335,8 @@ struct LBFGSTuner {
                        int> = 0>
   ParameterStore tune(ObjectiveFunction &objective) {
 
-    // Set up parameters
-    LBFGSpp::LBFGSBParam<double> param; // New parameter class
-    param.epsilon = 1e-6;
-    param.max_iterations = 100;
-
     // Create solver and function object
-    LBFGSpp::LBFGSBSolver<double> solver(param); // New solver class
+    LBFGSpp::LBFGSBSolver<double> solver(lbfgsb_params); // New solver class
     LBFGSFunction<ObjectiveFunction> fun(objective, initial_params, use_async,
                                          output_stream);
 
